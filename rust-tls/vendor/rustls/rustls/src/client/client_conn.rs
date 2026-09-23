@@ -1079,6 +1079,11 @@ impl std::error::Error for EarlyDataError {}
 pub struct ClientConnectionData {
     pub(super) early_data: EarlyData,
     pub(super) ech_status: EchStatus,
+    /// FORK: the ALPS codepoint the server answered in its
+    /// EncryptedExtensions, if it answered one. A server that does expects
+    /// the client's own settings back before the client's Finished, and
+    /// treats their absence as an unexpected message.
+    pub(super) alps_accepted: Option<u16>,
 }
 
 impl ClientConnectionData {
@@ -1086,6 +1091,7 @@ impl ClientConnectionData {
         Self {
             early_data: EarlyData::new(),
             ech_status: EchStatus::NotOffered,
+            alps_accepted: None,
         }
     }
 }

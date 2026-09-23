@@ -472,6 +472,11 @@ fn validate_encrypted_extensions(
     Ok(())
 }
 
+/// FORK: `application_settings`, at the codepoint Chrome 133 and later use.
+const ALPS: u16 = 0x44cd;
+/// FORK: `application_settings`, at the codepoint older Chrome used.
+const ALPS_OLD: u16 = 0x4469;
+
 struct ExpectEncryptedExtensions {
     config: Arc<ClientConfig>,
     resuming_session: Option<persist::Tls13ClientSessionValue>,
@@ -501,6 +506,14 @@ impl State<ClientConnectionData> for ExpectEncryptedExtensions {
         self.transcript.add_message(&m);
 
         validate_encrypted_extensions(cx.common, &self.hello, exts)?;
+        // FORK: ALPS is only ever a verbatim extension, so its answer lands
+        // among the unknown ones. Both codepoints: 0x4469 is the one Chrome
+        // used before 133, 0x44cd the one it uses now.
+        cx.data.alps_accepted = exts
+            .unknown_extensions
+            .iter()
+            .copied()
+            .find(|typ| *typ == ALPS || *typ == ALPS_OLD);
         hs::process_alpn_protocol(
             cx.common,
             &self.hello.alpn_protocols,
@@ -1363,6 +1376,18 @@ impl State<ClientConnectionData> for ExpectFinished {
         }
 
         let mut flight = HandshakeFlightTls13::new(&mut st.transcript);
+
+        // FORK: a server that accepted ALPS waits for the client's settings,
+        // in an EncryptedExtensions of the client's own, sent first in this
+        // flight. They are empty, as curl-impersonate sends them: the server
+        // needs the message, and HTTP/2 settings still follow in the preface.
+        if let Some(typ) = cx.data.alps_accepted {
+            let [hi, lo] = typ.to_be_bytes();
+            flight.add(HandshakeMessagePayload(HandshakePayload::Unknown((
+                HandshakeType::EncryptedExtensions,
+                Payload::new(vec![0x00, 0x04, hi, lo, 0x00, 0x00]),
+            ))));
+        }
 
         /* Send our authentication/finished messages.  These are still encrypted
          * with our handshake keys. */

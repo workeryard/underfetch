@@ -1,0 +1,15 @@
+{
+  "name": "underfetch-tls",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "underfetch_tls_bg.wasm",
+    "underfetch_tls.js",
+    "underfetch_tls.d.ts"
+  ],
+  "main": "underfetch_tls.js",
+  "types": "underfetch_tls.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
