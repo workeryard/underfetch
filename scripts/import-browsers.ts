@@ -44,9 +44,7 @@ const EXTENSIONS: Record<string, number> = {
 };
 
 /** Extensions the TLS module cannot send yet; a capture needing one is skipped. */
-const UNSUPPORTED: Record<number, string> = {
-  0x0015: 'padding, whose length depends on the finished ClientHello',
-};
+const UNSUPPORTED: Record<number, string> = {};
 
 interface RawExtension {
   type: string;
@@ -104,7 +102,46 @@ function shuffles(browser: string, version: string): boolean {
   return (browser === 'chrome' || browser === 'edge') && Number.parseInt(version, 10) >= 110;
 }
 
-async function convert(file: string, sig: RawSignature): Promise<Capture | string> {
+/** HTTP/2 settings and window update, from curl-impersonate's own target table. */
+interface Declared {
+  settings: [number, number][];
+  windowUpdate: number;
+}
+
+/**
+ * The older captures recorded only the HEADERS frame, not the SETTINGS or the
+ * window update before it. For those, the values come from the table
+ * curl-impersonate itself sends them from, lib/impersonate.c in its patch.
+ */
+function declaredHttp2(patch: string): Map<string, Declared> {
+  const source = patch
+    .slice(patch.indexOf('+++ b/lib/impersonate.c'), patch.indexOf('+++ b/lib/impersonate.h'))
+    .split('\n')
+    .filter((line) => line.startsWith('+'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  const out = new Map<string, Declared>();
+  for (const block of source.split(/\n {2}\{\n/)) {
+    const target = /\.target = "([^"]+)"/.exec(block)?.[1];
+    const settings = /\.http2_settings = "([^"]+)"/.exec(block)?.[1];
+    const window = /\.http2_window_update = (\d+)/.exec(block)?.[1];
+    if (target === undefined || settings === undefined) continue;
+    out.set(target, {
+      settings: settings.split(';').map((pair) => {
+        const [id, value] = pair.split(':').map(Number);
+        return [id!, value!];
+      }),
+      windowUpdate: Number(window ?? 0),
+    });
+  }
+  return out;
+}
+
+async function convert(
+  file: string,
+  sig: RawSignature,
+  declared: Declared | undefined,
+): Promise<Capture | string> {
   const hello = sig.signature.tls_client_hello;
   const kept = hello.extensions.filter((e) => e.type !== 'pre_shared_key');
   // A pre_shared_key only appears when a session is resumed, which a fresh
@@ -129,8 +166,11 @@ async function convert(file: string, sig: RawSignature): Promise<Capture | strin
   const headersFrame = frames.find((f) => f.frame_type === 'HEADERS');
   if (headersFrame === undefined) throw new Error(`${file}: no HEADERS frame`);
   const http2 = {
-    settings: settings.map(({ key, value }) => [key, value] as [number, number]),
-    windowUpdate: window?.window_size_increment ?? 0,
+    settings:
+      settings.length > 0
+        ? settings.map(({ key, value }) => [key, value] as [number, number])
+        : (declared?.settings ?? []),
+    windowUpdate: window?.window_size_increment ?? declared?.windowUpdate ?? 0,
     pseudoHeaderOrder: (headersFrame.pseudo_headers ?? []).map(
       (name) => name.slice(1, 2) as 'm' | 'a' | 's' | 'p',
     ),
@@ -144,6 +184,8 @@ async function convert(file: string, sig: RawSignature): Promise<Capture | strin
     const value = name === 'accept-encoding' ? 'gzip, deflate' : line.slice(colon + 1).trim();
     return [name, value];
   });
+
+  if (http2.settings.length === 0) throw new Error(`${file}: no HTTP/2 settings anywhere`);
 
   const alpn = find('application_layer_protocol_negotiation')?.alpn_list ?? [];
   const ciphers = hello.ciphersuites.map(grease);
@@ -199,8 +241,17 @@ const files = tree.tree
 const targets = (
   parse(await text(raw('tests/targets.yaml'))) as [string, unknown, unknown, string][]
 )
-  .filter(([wrapper]) => wrapper.startsWith('curl_'))
-  .map(([wrapper, , , capture]) => [wrapper.slice('curl_'.length), capture] as const);
+  .map(([wrapper, env, , capture]) => {
+    // Most targets have a wrapper script; a few appear only as the
+    // libcurl-impersonate test, named by its CURL_IMPERSONATE variable.
+    const named = (env as { CURL_IMPERSONATE?: string } | null)?.CURL_IMPERSONATE;
+    const name = wrapper.startsWith('curl_') ? wrapper.slice('curl_'.length) : named;
+    return [name, capture] as const;
+  })
+  .filter((entry): entry is readonly [string, string] => entry[0] !== undefined)
+  .filter(([name], i, all) => all.findIndex(([other]) => other === name) === i);
+
+const declared = declaredHttp2(await text(raw('patches/curl.patch')));
 
 const out: Record<string, Capture> = {};
 for (const [name, wanted] of targets) {
@@ -213,7 +264,7 @@ for (const [name, wanted] of targets) {
     continue;
   }
   const sig = parse(await text(raw(`tests/signatures/${file}.yaml`))) as RawSignature;
-  const capture = await convert(file, sig);
+  const capture = await convert(file, sig, declared.get(name));
   if (typeof capture === 'string') {
     console.log(`skip ${name}: ${capture}`);
     continue;

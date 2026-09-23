@@ -223,20 +223,22 @@ nothing else on the web omits it. Ask for a browser instead:
 const session = new Session({ impersonate: 'chrome' });
 ```
 
-Sixteen browsers are built in, under the names impers gives them, and both
-fingerprints a server reads match the real browser for each — JA4 from the
-handshake, and the Akamai string from the HTTP/2 settings:
+Thirty-five browsers are built in, under the names impers gives them, and
+both fingerprints a server reads match the real browser for each — JA4 from
+the handshake, and the Akamai string from the HTTP/2 settings:
 
-| family         | profiles                                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------ |
-| Chrome         | `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` |
-| Chrome Android | `chrome131_android`                                                                                          |
-| Firefox        | `firefox133` `firefox135` `firefox144`                                                                       |
-| Safari         | `safari260` `safari2601`                                                                                     |
-| Tor            | `tor145`                                                                                                     |
+| family         | profiles                                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome         | `chrome99` `chrome100` `chrome101` `chrome104` `chrome107` `chrome110` `chrome116` `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` |
+| Chrome Android | `chrome99_android` `chrome131_android`                                                                                                                                                          |
+| Edge           | `edge99` `edge101`                                                                                                                                                                              |
+| Firefox        | `firefox133` `firefox135` `firefox144`                                                                                                                                                          |
+| Safari         | `safari153` `safari155` `safari170` `safari180` `safari184` `safari260` `safari2601`                                                                                                            |
+| Safari iOS     | `safari172_ios` `safari180_ios` `safari184_ios` `safari260_ios`                                                                                                                                 |
+| Tor            | `tor145`                                                                                                                                                                                        |
 
-`chrome`, `chrome_android`, `firefox`, `safari` and `tor` name the newest of
-each. The defaults, for instance:
+`chrome`, `chrome_android`, `edge`, `firefox`, `safari`, `safari_ios` and
+`tor` name the newest of each. The defaults, for instance:
 
 | profile   | JA4                                    | Akamai                                                 |
 | --------- | -------------------------------------- | ------------------------------------------------------ |
@@ -269,9 +271,10 @@ send, so the tests compare us with the browser rather than with ourselves.
 pnpm import:browsers     # regenerate from the pinned commit
 ```
 
-Older targets (Chrome before 119, Edge, Safari before 26, Safari on iOS) are
-not in yet: their ClientHellos carry a `padding` extension whose length
-depends on the finished message, which the TLS module cannot size yet.
+The oldest captures recorded no SETTINGS frame; for those, the HTTP/2
+settings come from curl-impersonate's own target table. Three impers targets
+are missing — `chrome145`, `chrome146` and `firefox147` — because no capture
+of them has been published.
 
 Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
 string is right in every other field.

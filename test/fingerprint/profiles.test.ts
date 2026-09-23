@@ -254,4 +254,26 @@ describe('the ClientHello', () => {
     );
     expect(await fullJa4(parseClientHello(session.outgoing()))).toBe(as.expected.ja4);
   });
+
+  it('pads a ClientHello to 512 bytes, last, as BoringSSL does', () => {
+    initSync({ module: wasm });
+    const as = profiles.safari180;
+    const record = new TlsClient(
+      'example.com',
+      as.alpn.join(','),
+      new Uint16Array(as.ciphers),
+      new Uint16Array(as.signatureSchemes),
+      encodeExtensions(as.extensions()),
+      as.greaseNamedGroup,
+      as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
+      as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
+    ).outgoing();
+    // A five-byte record header, then a handshake message of exactly 512.
+    expect(record.length).toBe(5 + 512);
+    expect(parse(record).extensions.at(-1)).toBe(0x0015);
+  });
+
+  it('leaves a ClientHello unpadded when the browser does not pad', () => {
+    expect(helloFor(profiles.chrome150).extensions).not.toContain(0x0015);
+  });
 });

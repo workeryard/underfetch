@@ -136,6 +136,8 @@ function verbatim(capture: Capture, type: number): Uint8Array | undefined {
       return bytes(0x00);
     case 0x0012: // signed_certificate_timestamp
       return bytes();
+    case 0x0015: // padding: a request for it; the TLS module sizes it
+      return bytes();
     case 0x4469: // application_settings, before Chrome 133
     case 0x44cd: // application_settings
       return alps(...(capture.alps ?? ['h2']));
@@ -198,8 +200,10 @@ export const profiles = {
   ...targets,
   chrome: targets.chrome150,
   chrome_android: targets.chrome131_android,
+  edge: targets.edge101,
   firefox: targets.firefox144,
   safari: targets.safari2601,
+  safari_ios: targets.safari260_ios,
   tor: targets.tor145,
 } as const;
 

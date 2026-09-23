@@ -1111,6 +1111,33 @@ impl ClientExtensions<'_> {
     }
 }
 
+/// FORK: RFC 7685 padding. A verbatim extension of this type is a request
+/// for it, not its body: its length depends on the finished ClientHello.
+const PADDING: u16 = 0x0015;
+
+/// FORK: pads the ClientHello the way BoringSSL does, so it can be told from
+/// a browser by nothing but its bytes. A message of 256 to 511 bytes, handshake
+/// header included, is grown to 512 by a final padding extension; anything
+/// outside that range gets none. `start` is where the ClientHello body began
+/// in `bytes`, and `extensions_at` where its extension list's length is.
+fn pad_client_hello(bytes: &mut Vec<u8>, start: usize, extensions_at: usize) {
+    const HANDSHAKE_HEADER: usize = 4;
+    let total = HANDSHAKE_HEADER + bytes.len() - start;
+    if !(0x100..0x200).contains(&total) || bytes.len() < extensions_at + 2 {
+        return;
+    }
+    // At least one byte of data: some servers reject a final empty extension.
+    let length = match 0x200 - total {
+        n if n >= 4 + 1 => n - 4,
+        _ => 1,
+    };
+    encode_verbatim(PADDING, &vec![0u8; length], bytes);
+
+    let listed = u16::from_be_bytes([bytes[extensions_at], bytes[extensions_at + 1]]);
+    let grown = listed + 4 + length as u16;
+    bytes[extensions_at..extensions_at + 2].copy_from_slice(&grown.to_be_bytes());
+}
+
 /// FORK: one extension written as it was given, with no interpretation.
 fn encode_verbatim(typ: u16, data: &[u8], out: &mut Vec<u8>) {
     out.extend_from_slice(&typ.to_be_bytes());
@@ -1132,6 +1159,9 @@ impl<'a> Codec<'a> for ClientExtensions<'a> {
         // where a browser that shuffles puts its first GREASE one anyway.
         if self.forced_order.is_empty() {
             for (typ, data) in &self.verbatim_extensions {
+                if *typ == PADDING {
+                    continue;
+                }
                 encode_verbatim(*typ, data, body.buf);
             }
             for item in built {
@@ -1145,6 +1175,11 @@ impl<'a> Codec<'a> for ClientExtensions<'a> {
         // side holds it.
         let mut written: Vec<u16> = Vec::with_capacity(self.forced_order.len());
         for &wanted in &self.forced_order {
+            // FORK: padding is sized from the finished hello, so it is written
+            // last by `ClientHelloPayload`, never here.
+            if wanted == PADDING {
+                continue;
+            }
             if let Some((typ, data)) = self
                 .verbatim_extensions
                 .iter()
@@ -1408,6 +1443,7 @@ impl ClientHelloPayload {
     }
 
     pub(crate) fn payload_encode(&self, bytes: &mut Vec<u8>, purpose: Encoding) {
+        let start = bytes.len();
         self.client_version.encode(bytes);
         self.random.encode(bytes);
 
@@ -1423,7 +1459,18 @@ impl ClientHelloPayload {
         let to_compress = match purpose {
             Encoding::EchInnerHello { to_compress } if !to_compress.is_empty() => to_compress,
             _ => {
+                let extensions_at = bytes.len();
                 self.extensions.encode(bytes);
+                // FORK: padding goes last, and a pre-shared key must, so a
+                // resumed hello goes unpadded rather than break its binder.
+                let wants_padding = self
+                    .extensions
+                    .verbatim_extensions
+                    .iter()
+                    .any(|(typ, _)| *typ == PADDING);
+                if wants_padding && self.extensions.preshared_key_offer.is_none() {
+                    pad_client_hello(bytes, start, extensions_at);
+                }
                 return;
             }
         };
