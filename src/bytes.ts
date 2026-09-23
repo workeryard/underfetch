@@ -74,7 +74,7 @@ export class ByteReader {
    * never sends one from growing the buffer without end.
    */
   async line(limit = 16_384): Promise<string> {
-    for (let from = 0; ; ) {
+    for (let from = 0; ;) {
       for (let i = from; i + 1 < this.#buffer.length; i++) {
         if (this.#buffer[i] === CR && this.#buffer[i + 1] === LF) {
           const line = this.#take(i);

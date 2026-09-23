@@ -111,7 +111,8 @@ async function authenticate(
   await writer.write(request);
 
   await reader.byte(); // the server echoes the auth version
-  if ((await reader.byte()) !== 0) throw new Socks5Error('the proxy rejected the username/password');
+  if ((await reader.byte()) !== 0)
+    throw new Socks5Error('the proxy rejected the username/password');
 }
 
 /**

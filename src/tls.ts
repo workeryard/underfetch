@@ -34,7 +34,7 @@ export class TlsError extends Error {
 
 /** Feeds a whole chunk in, however many passes the session needs to take it. */
 function receiveAll(session: TlsSession, chunk: Uint8Array): void {
-  for (let offset = 0; offset < chunk.length; ) {
+  for (let offset = 0; offset < chunk.length;) {
     const taken = session.receive(chunk.subarray(offset));
     if (taken <= 0) throw new TlsError('the TLS session stopped accepting data');
     offset += taken;

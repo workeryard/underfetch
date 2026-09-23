@@ -229,16 +229,13 @@ fn emit_client_hello_for_retry(
             groups
         }),
         supported_versions: Some(supported_versions),
-        signature_schemes: Some(
-            config
-                .verifier
-                .supported_verify_schemes(),
-        ),
+        // FORK: Chrome's list, in Chrome's order.
+        signature_schemes: Some(crate::grease::signature_schemes()),
         extended_master_secret_request: Some(()),
         certificate_status_request: Some(CertificateStatusRequest::build_ocsp()),
         protocols: extra_exts.protocols.clone(),
-        // FORK: browsers bracket their extension list with GREASE values.
-        verbatim_extensions: crate::grease::extensions(),
+        // FORK: the extensions a browser sends that rustls does not build.
+        verbatim_extensions: crate::grease::extensions(config.provider.secure_random),
         ..Default::default()
     });
 
@@ -385,24 +382,9 @@ fn emit_client_hello_for_retry(
     // but they also need to keep the same order as the previous ClientHello
     exts.order_seed = input.hello.extension_order_seed;
 
-    let mut cipher_suites: Vec<_> = config
-        .provider
-        .cipher_suites
-        .iter()
-        .filter_map(|cs| match cs.usable_for_protocol(cx.common.protocol) {
-            true => Some(cs.suite()),
-            false => None,
-        })
-        .collect();
-
-    if supported_versions.tls12 {
-        // We don't do renegotiation at all, in fact.
-        cipher_suites.push(CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV);
-    }
-
-    // FORK: browsers lead with a GREASE suite. A server must ignore it, so it
-    // costs nothing and it is the first thing a fingerprint looks for.
-    cipher_suites.insert(0, crate::grease::cipher_suite());
+    // FORK: offer Chrome's list in Chrome's order rather than our own. Half of
+    // it we cannot negotiate; `grease` explains why that is survivable.
+    let cipher_suites = crate::grease::cipher_suites();
 
     let mut chp_payload = ClientHelloPayload {
         client_version: ProtocolVersion::TLSv1_2,
