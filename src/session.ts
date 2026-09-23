@@ -6,12 +6,15 @@
  * timeout and the headers, and lets one request override any of them.
  */
 
+import { buildRequest, followRedirects, type BodyOptions, type RedirectOptions } from './api';
 import { proxyFetch } from './index';
 import type { Http2Profile } from './h2/connection';
 import type { Dial, Proxy } from './socket';
 import type { TlsFactory } from './tls';
 
-export interface SessionDefaults {
+export interface SessionDefaults extends RedirectOptions {
+  /** Prefixed to a path, so callers can ask for `/v1/models`. */
+  baseUrl?: string | undefined;
   /** Where requests leave from. Left out, they are dialled directly. */
   proxy?: Proxy | undefined;
   /** Gives up after this many milliseconds. */
@@ -29,7 +32,7 @@ export interface SessionOptions extends SessionDefaults {
   http2?: Http2Profile | undefined;
 }
 
-export interface SessionRequestInit extends RequestInit {
+export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOptions {
   /** Overrides the session's proxy. `null` forces this one request direct. */
   proxy?: Proxy | null | undefined;
   timeoutMs?: number | undefined;
@@ -64,7 +67,7 @@ export class Session {
   }
 
   async fetch(input: string | URL | Request, init?: SessionRequestInit): Promise<Response> {
-    const request = new Request(input, init);
+    const request = buildRequest(input, init, this.#defaults.baseUrl);
     const headers = merged(this.#defaults.headers, request);
     // A request carrying session headers is a different request, so it is
     // rebuilt rather than mutated — `Request.headers` is not writable.
@@ -75,13 +78,44 @@ export class Session {
     const proxy = init?.proxy === undefined ? this.#defaults.proxy : (init.proxy ?? undefined);
     const timeoutMs = init?.timeoutMs ?? this.#defaults.timeoutMs;
 
-    return proxyFetch(outgoing, {
-      dial: this.#dial,
-      tls: this.#tls,
-      ...(this.#http2 ? { http2: this.#http2 } : {}),
-      ...(proxy ? { proxy } : {}),
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
-      ...(init?.signal ? { signal: init.signal } : {}),
+    const send = (one: Request) =>
+      proxyFetch(one, {
+        dial: this.#dial,
+        tls: this.#tls,
+        ...(this.#http2 ? { http2: this.#http2 } : {}),
+        ...(proxy ? { proxy } : {}),
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        ...(init?.signal ? { signal: init.signal } : {}),
+      });
+
+    return followRedirects(outgoing, send, {
+      allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
+      maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
     });
+  }
+
+  get(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'GET' });
+  }
+
+  post(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'POST' });
+  }
+
+  put(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'PUT' });
+  }
+
+  patch(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'PATCH' });
+  }
+
+  /** `delete` is a reserved word, which is why every client calls it this. */
+  del(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'DELETE' });
+  }
+
+  head(url: string | URL, init?: SessionRequestInit): Promise<Response> {
+    return this.fetch(url, { ...init, method: 'HEAD' });
   }
 }

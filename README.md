@@ -93,9 +93,53 @@ const viaHttp = new Session({
 await viaSocks.fetch('https://example.com/', { proxy: null });
 ```
 
-`Session.fetch` takes what `fetch` takes, plus `proxy` and `timeoutMs`, and
-returns a normal `Response` whose body is still streaming. Server-sent events
-arrive event by event; nothing waits for the whole answer.
+### Shorter forms
+
+A session can hold the host, and there is a method per verb:
+
+```ts
+const api = new Session({
+  baseUrl: 'https://api.example.com',
+  impersonate: 'chrome',
+  headers: { 'user-agent': 'my-worker/1.0' },
+});
+
+await api.get('/v1/models', { params: { limit: 20 } });
+await api.post('/v1/chat/completions', { json: { model: 'x', messages } });
+await api.del('/v1/files/abc');
+```
+
+For one request, skip the session:
+
+```ts
+import { get, post, request } from 'underfetch/workers';
+
+await get('https://api.example.com/v1/models', { impersonate: 'chrome' });
+await post('https://api.example.com/token', { form: { grant_type: 'client_credentials' } });
+await request('PATCH', url, { json: { name: 'new' } });
+```
+
+| option                           | what it does                                           |
+| -------------------------------- | ------------------------------------------------------ |
+| `params`                         | query parameters, merged with any already in the URL   |
+| `json`                           | a JSON body, and the `content-type` that implies       |
+| `form`                           | an `application/x-www-form-urlencoded` body            |
+| `auth`                           | `{ bearer }` or `{ username, password }`               |
+| `headers`                        | as `fetch` takes them                                  |
+| `proxy`                          | overrides the session's; `null` forces this one direct |
+| `timeoutMs`                      | gives up, headers and body together                    |
+| `allowRedirects`, `maxRedirects` | default `true` and `20`                                |
+| `impersonate`                    | whose ClientHello to send                              |
+
+What comes back is a plain `Response`, deliberately. It already carries
+`status`, `headers`, `text()` and `json()`, and unlike a bespoke response
+object it leaves the body **streaming** — server-sent events arrive event by
+event, and nothing waits for the whole answer. After redirects, `response.url`
+is where the chain ended.
+
+A redirect that changes host drops `authorization` and `cookie`. A 307 or 308
+repeats the request body, so a body is buffered before the first hop; if that
+matters, turn redirects off.
 
 ### Without the Workers adapter
 

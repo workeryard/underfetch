@@ -26,6 +26,8 @@ export { DEFAULT_PROFILE, http2Fetch } from './h2/connection';
 export { Http2Error } from './h2/frames';
 export type { Http2Profile } from './h2/connection';
 export { encodeExtensions, GREASE, profiles } from './impersonate';
+export { ApiError, buildRequest, followRedirects } from './api';
+export type { BodyOptions, Params, RedirectOptions } from './api';
 export { akamai, ja4, parseClientHello, verifyProfile, VerifyError } from './verify';
 export type { ClientHello, Verdict } from './verify';
 export { Session } from './session';

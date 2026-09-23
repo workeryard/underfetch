@@ -60,7 +60,36 @@ export class Session extends PlainSession {
   }
 }
 
-/** One request, for when a session would only be built to be thrown away. */
+/**
+ * One request, for when a session would only be built to be thrown away.
+ *
+ * Each of these opens its own connection, so a caller making several should
+ * hold a `Session` instead — it keeps the proxy, the profile and the headers
+ * in one place rather than repeating them.
+ */
+export function request(
+  method: string,
+  input: string | URL,
+  init?: WorkerRequestInit,
+): Promise<Response> {
+  const { impersonate, ...rest } = init ?? {};
+  return new Session(impersonate ? { impersonate } : {}).fetch(input, { ...rest, method });
+}
+
+export interface WorkerRequestInit extends SessionRequestInit {
+  /** Whose ClientHello to send for this one request. */
+  impersonate?: ProfileName | Impersonation | undefined;
+}
+
+export const get = (url: string | URL, init?: WorkerRequestInit) => request('GET', url, init);
+export const post = (url: string | URL, init?: WorkerRequestInit) => request('POST', url, init);
+export const put = (url: string | URL, init?: WorkerRequestInit) => request('PUT', url, init);
+export const patch = (url: string | URL, init?: WorkerRequestInit) => request('PATCH', url, init);
+/** `delete` is a reserved word, which is why every client calls it this. */
+export const del = (url: string | URL, init?: WorkerRequestInit) => request('DELETE', url, init);
+export const head = (url: string | URL, init?: WorkerRequestInit) => request('HEAD', url, init);
+
+/** The same as `get`, kept for callers that read better this way. */
 export function socketFetch(
   input: string | URL | Request,
   init?: SessionRequestInit,
