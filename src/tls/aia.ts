@@ -124,6 +124,3 @@ export async function chaseIssuers(
   }
   return found;
 }
-
-/** True for the one failure a missing intermediate explains. */
-export const missingIssuer = (error: unknown) => String(error).includes('UnknownIssuer');

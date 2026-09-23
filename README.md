@@ -255,11 +255,22 @@ order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the rest —
 because a handshake that matches Chrome while the headers say "not a browser"
 fools nobody. Headers a session or a request sets win over the profile's.
 
-Two honest deviations. `accept-encoding` is ours (`gzip, deflate`) rather than
-the browser's `gzip, deflate, br, zstd`: `DecompressionStream` has no brotli
-and no zstd, and advertising what cannot be decoded is how a handshake breaks.
-And the `sec-ch-ua` brand list rotates between Chrome releases, so check it
-against a real browser if it matters to you.
+Where it cannot be the browser, it says so. `accept-encoding` is ours
+(`gzip, deflate`) rather than the browser's `gzip, deflate, br, zstd`:
+`DecompressionStream` has no brotli and no zstd, and advertising what cannot be
+decoded is how a handshake breaks. The `sec-ch-ua` brand list rotates between
+Chrome releases, so check it against a real browser if it matters to you. The
+key share is X25519 alone: the post-quantum group browsers now lead with needs
+a key exchange the TLS module does not have, and naming it without a share
+makes nearly every server ask for it again.
+
+And two failures are met with a second connection rather than an error. A
+server that sends its leaf certificate alone gets its issuer fetched, as a
+browser does. A TLS 1.2 server that signs with a scheme the browser offers but
+the verifier cannot check — ECDSA with SHA-512, which old OpenSSL prefers —
+gets asked again with only the schemes that can be checked. That second
+ClientHello is not the browser's, but it only goes to a server that would
+otherwise have been unreachable.
 
 The browsers are data, not code: `src/fingerprint/browsers.ts`, generated from
 [curl-impersonate](https://github.com/lexiforest/curl-impersonate)'s

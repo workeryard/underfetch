@@ -12,8 +12,9 @@ import { http2Fetch, type Http2Profile } from '../http/h2/connection';
 import { http1Fetch } from '../http/http1';
 import { tunnelThrough } from '../net/proxy';
 import type { ByteSocket, Dial, Proxy } from '../net/socket';
-import { chaseIssuers, decodeCertificates, MAX_CERTIFICATE_BYTES, missingIssuer } from '../tls/aia';
-import { tlsTunnel, type TlsFactory, type TlsSession } from '../tls/tunnel';
+import { chaseIssuers, decodeCertificates, MAX_CERTIFICATE_BYTES } from '../tls/aia';
+import { missingIssuer, unverifiableSignature } from '../tls/errors';
+import { tlsTunnel, type TlsFactory, type TlsOptions, type TlsSession } from '../tls/tunnel';
 import { deadline, until } from './abort';
 
 export interface ProxyFetchOptions {
@@ -112,44 +113,63 @@ export async function proxyFetch(request: Request, options: ProxyFetchOptions): 
   }
   const limit = deadline(options.signal ?? request.signal, options.timeoutMs);
 
-  let last: TlsSession | undefined;
-  const recording: TlsFactory = (hostname, alpn, intermediates) =>
-    (last = options.tls(hostname, alpn, intermediates));
-
-  try {
-    return await attempt(request, url, options, recording, limit.signal);
-  } catch (error) {
-    // Only a missing issuer is worth a second connection, and only while the
-    // request can still be sent again: the handshake fails before any body
-    // is read, but a caller's stream is not ours to assume unread.
-    const presented = last?.presentedChain?.();
-    if (
-      options.completeChains === false ||
-      !missingIssuer(error) ||
-      request.bodyUsed ||
-      presented === undefined
-    ) {
+  // Each failure a second connection can fix has one remedy, tried once, so
+  // this ends after three attempts at most.
+  const remedies: TlsOptions = {};
+  for (;;) {
+    let last: TlsSession | undefined;
+    const recording: TlsFactory = (hostname, alpn) =>
+      (last = options.tls(hostname, alpn, { ...remedies }));
+    try {
+      return await attempt(request, url, options, recording, limit.signal);
+    } catch (error) {
+      // Only while the request can be sent again: a handshake fails before
+      // any body is read, but a caller's stream is not ours to assume unread.
+      if (request.bodyUsed) throw error;
+      if (unverifiableSignature(error) && !remedies.verifiableSignatures) {
+        remedies.verifiableSignatures = true;
+        continue;
+      }
+      if (
+        missingIssuer(error) &&
+        options.completeChains !== false &&
+        remedies.intermediates === undefined
+      ) {
+        const found = await completeChain(last, options, limit.signal);
+        if (found.length > 0) {
+          remedies.intermediates = found;
+          continue;
+        }
+      }
       throw error;
     }
-    const fetchCertificate = async (address: string) => {
-      const response = await proxyFetch(new Request(address), {
-        ...options,
-        signal: limit.signal,
-        completeChains: false,
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        return new Uint8Array(0);
-      }
-      return capped(response, MAX_CERTIFICATE_BYTES);
-    };
-    const found = await chaseIssuers(decodeCertificates(presented), fetchCertificate).catch(
-      () => [],
-    );
-    if (found.length === 0) throw error;
-    const completing: TlsFactory = (hostname, alpn) => options.tls(hostname, alpn, found);
-    return attempt(request, url, options, completing, limit.signal);
   }
+}
+
+/**
+ * Fetches the issuers a failed handshake's chain was missing, over the same
+ * route the request took. Returns nothing when there is nothing to fetch.
+ */
+async function completeChain(
+  session: TlsSession | undefined,
+  options: ProxyFetchOptions,
+  signal: AbortSignal,
+): Promise<Uint8Array[]> {
+  const presented = session?.presentedChain?.();
+  if (presented === undefined) return [];
+  const fetchCertificate = async (address: string) => {
+    const response = await proxyFetch(new Request(address), {
+      ...options,
+      signal,
+      completeChains: false,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return new Uint8Array(0);
+    }
+    return capped(response, MAX_CERTIFICATE_BYTES);
+  };
+  return chaseIssuers(decodeCertificates(presented), fetchCertificate).catch(() => []);
 }
 
 /** One connection: dial, tunnel, TLS, and the request over whichever HTTP. */

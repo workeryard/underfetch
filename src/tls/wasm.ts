@@ -10,7 +10,7 @@ import { encodeExtensions, type Impersonation } from '../fingerprint/profiles';
 import { initSync, TlsClient } from '../../rust-tls/pkg/underfetch_tls';
 import { encodeCertificates } from './aia';
 import wasm from '../../rust-tls/pkg/underfetch_tls_bg.wasm';
-import type { TlsFactory } from './tunnel';
+import type { TlsFactory, TlsOptions } from './tunnel';
 
 /**
  * `initSync` returns immediately once the module is instantiated, so calling it
@@ -20,7 +20,7 @@ function client(
   hostname: string,
   alpn: string | undefined,
   as: Impersonation | undefined,
-  intermediates: readonly Uint8Array[] | undefined,
+  { intermediates, verifiableSignatures }: TlsOptions = {},
 ) {
   initSync({ module: wasm });
   const extra = intermediates?.length ? encodeCertificates(intermediates) : undefined;
@@ -35,6 +35,7 @@ function client(
       undefined,
       undefined,
       extra,
+      verifiableSignatures,
     );
   }
   return new TlsClient(
@@ -47,15 +48,16 @@ function client(
     as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
     as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
     extra,
+    verifiableSignatures,
   );
 }
 
 /** TLS that looks like whatever `as` describes, or like rustls when it is absent. */
 export const impersonating =
   (as: Impersonation | undefined): TlsFactory =>
-  (hostname, alpn, intermediates) =>
-    client(hostname, alpn, as, intermediates);
+  (hostname, alpn, options) =>
+    client(hostname, alpn, as, options);
 
 /** TLS with rustls' own ClientHello, which is safe and instantly recognisable. */
-export const wasmTls: TlsFactory = (hostname, alpn, intermediates) =>
-  client(hostname, alpn, undefined, intermediates);
+export const wasmTls: TlsFactory = (hostname, alpn, options) =>
+  client(hostname, alpn, undefined, options);

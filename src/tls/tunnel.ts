@@ -33,15 +33,16 @@ export interface TlsSession {
   close(): void;
 }
 
-/**
- * Builds a TLS client for one connection. `intermediates` are certificates
- * fetched to complete a chain the server sent short; see `aia.ts`.
- */
-export type TlsFactory = (
-  hostname: string,
-  alpn?: string,
-  intermediates?: readonly Uint8Array[],
-) => TlsSession;
+/** What a second attempt at a connection asks of the TLS client. */
+export interface TlsOptions {
+  /** Certificates fetched to complete a chain the server sent short; see `aia.ts`. */
+  intermediates?: readonly Uint8Array[] | undefined;
+  /** Offer only the signature schemes the verifier can check. */
+  verifiableSignatures?: boolean | undefined;
+}
+
+/** Builds a TLS client for one connection. */
+export type TlsFactory = (hostname: string, alpn?: string, options?: TlsOptions) => TlsSession;
 
 export class TlsError extends Error {
   override name = 'TlsError';

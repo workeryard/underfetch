@@ -152,7 +152,8 @@ describe('proxyFetch with a short chain', () => {
       );
     };
     const given: (readonly Uint8Array[] | undefined)[] = [];
-    const tls: TlsFactory = (_hostname, _alpn, intermediates) => {
+    const tls: TlsFactory = (_hostname, _alpn, options) => {
+      const intermediates = options?.intermediates;
       given.push(intermediates);
       return new ShortChain(
         leaf,

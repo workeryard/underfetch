@@ -132,6 +132,7 @@ impl TlsClient {
         extension_order: Option<Vec<u16>>,
         named_groups: Option<Vec<u16>>,
         intermediates: Option<Vec<u8>>,
+        verifiable_signatures: Option<bool>,
     ) -> Result<TlsClient, JsValue> {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
@@ -142,6 +143,10 @@ impl TlsClient {
         )
         .build()
         .map_err(|error| fail("could not build the certificate verifier", error))?;
+        // The schemes this verifier can check. A browser offers more — SHA-1,
+        // and ECDSA with SHA-512 — and an old TLS 1.2 server that picks one
+        // cannot be verified. Asked for, the offer is cut to what can be.
+        let verifiable = inner.supported_verify_schemes();
         let presented = Arc::new(Mutex::new(Vec::new()));
         let verifier = Completing {
             inner,
@@ -171,6 +176,7 @@ impl TlsClient {
                 .unwrap_or_default()
                 .into_iter()
                 .map(SignatureScheme::from)
+                .filter(|scheme| !verifiable_signatures.unwrap_or(false) || verifiable.contains(scheme))
                 .collect(),
             verbatim_extensions: Fingerprint::extensions_from_bytes(&extensions.unwrap_or_default()),
             // Firefox GREASEs nothing at all, so this cannot be inferred.

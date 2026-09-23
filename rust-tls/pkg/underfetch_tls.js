@@ -42,8 +42,9 @@ export class TlsClient {
      * @param {Uint16Array | null} [extension_order]
      * @param {Uint16Array | null} [named_groups]
      * @param {Uint8Array | null} [intermediates]
+     * @param {boolean | null} [verifiable_signatures]
      */
-    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates) {
+    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
@@ -62,7 +63,7 @@ export class TlsClient {
             var len6 = WASM_VECTOR_LEN;
             var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export2);
             var len7 = WASM_VECTOR_LEN;
-            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7);
+            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
