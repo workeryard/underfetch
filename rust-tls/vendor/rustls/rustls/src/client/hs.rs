@@ -472,8 +472,34 @@ fn emit_client_hello_for_retry(
         _ => {}
     }
 
+    // FORK: a verbatim ECH extension is a GREASE one, and saying so lets
+    // rustls' own handling take the server's retry configs instead of treating
+    // the answer as unsolicited.
+    if chp_payload
+        .extensions
+        .verbatim_extensions
+        .iter()
+        .any(|(typ, _)| *typ == u16::from(ExtensionType::EncryptedClientHello))
+        && cx.data.ech_status == EchStatus::NotOffered
+    {
+        cx.data.ech_status = EchStatus::Grease;
+    }
+
     // Note what extensions we sent.
     input.hello.sent_extensions = chp_payload.collect_used();
+    // FORK: including the verbatim ones. We did send them, so a server that
+    // answers one is not misbehaving — without this, any peer that replies to
+    // ALPS or certificate compression fails the handshake.
+    input
+        .hello
+        .sent_extensions
+        .extend(
+            chp_payload
+                .extensions
+                .verbatim_extensions
+                .iter()
+                .map(|(typ, _)| ExtensionType::from(*typ)),
+        );
     input.hello.offered_cipher_suites = chp_payload.cipher_suites.clone();
 
     let mut chp = HandshakeMessagePayload(HandshakePayload::ClientHello(chp_payload));

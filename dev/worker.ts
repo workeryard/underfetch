@@ -44,9 +44,62 @@ async function check(name: ProfileName) {
   }
 }
 
+/**
+ * What this costs against the platform's own `fetch`.
+ *
+ * `fetch` gets its TLS from the runtime, in native code, on a connection pool
+ * it may already have warm. Here every handshake is done in WebAssembly on a
+ * socket opened for this one request, so it is bound to be slower — the only
+ * question is by how much, and that is a number rather than an opinion.
+ */
+async function time(label: string, run: () => Promise<Response>, rounds: number) {
+  const samples: number[] = [];
+  let failed: string | undefined;
+  for (let i = 0; i < rounds; i++) {
+    const started = Date.now();
+    try {
+      // Read to the end: a handshake that has not delivered a body is not done.
+      await (await run()).text();
+      samples.push(Date.now() - started);
+    } catch (error) {
+      failed = String(error);
+      break;
+    }
+  }
+  if (failed !== undefined) return { label, error: failed };
+  const sorted = [...samples].sort((a, b) => a - b);
+  return {
+    label,
+    runs: samples,
+    best: sorted[0],
+    median: sorted[Math.floor(sorted.length / 2)],
+    worst: sorted[sorted.length - 1],
+  };
+}
+
+async function benchmark(url: string, rounds: number) {
+  return [
+    await time('platform fetch', () => fetch(url), rounds),
+    await time('underfetch, no profile', () => new Session().fetch(url), rounds),
+    await time(
+      'underfetch, chrome',
+      () => new Session({ impersonate: 'chrome' }).fetch(url),
+      rounds,
+    ),
+  ];
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
-    const asked = new URL(request.url).searchParams.get('as');
+    const query = new URL(request.url).searchParams;
+
+    if (new URL(request.url).pathname === '/bench') {
+      const url = query.get('url') ?? 'https://example.com/';
+      const rounds = Math.min(Number(query.get('n') ?? 5), 20);
+      return Response.json({ url, rounds, results: await benchmark(url, rounds) });
+    }
+
+    const asked = query.get('as');
     const names = (asked ? [asked] : Object.keys(profiles)) as ProfileName[];
     const results = [];
     for (const name of names) results.push(await check(name));

@@ -148,7 +148,6 @@ export const chrome: Impersonation = {
     [GREASE[0], bytes()],
     [0xff01, bytes(0x00)], // renegotiation_info
     [0x0012, bytes()], // signed_certificate_timestamp
-    [0x001b, bytes(0x02, 0x00, 0x02)], // compress_certificate: brotli
     [0x44cd, alps('h2')], // application_settings
     [0xfe0d, greaseEch(176)], // encrypted_client_hello
     [GREASE[1], bytes(0x00)],
@@ -204,7 +203,6 @@ export const firefox: Impersonation = {
     [0x0022, schemeList(0x0403, 0x0503, 0x0603, 0x0203)], // delegated_credentials
     [0x0012, bytes()], // signed_certificate_timestamp
     [0x001c, bytes(0x40, 0x01)], // record_size_limit
-    [0x001b, bytes(0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03)], // zlib, brotli, zstd
     [0xfe0d, greaseEch(223)], // encrypted_client_hello
   ],
   expected: {
@@ -279,7 +277,6 @@ export const safari: Impersonation = {
     [GREASE[0], bytes()],
     [0xff01, bytes(0x00)], // renegotiation_info
     [0x0012, bytes()], // signed_certificate_timestamp
-    [0x001b, bytes(0x02, 0x00, 0x01)], // compress_certificate: zlib
     [GREASE[1], bytes(0x00)],
   ],
   expected: {

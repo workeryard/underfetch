@@ -1825,9 +1825,12 @@ impl<'a> Codec<'a> for CertificateExtensions<'a> {
         let mut sub = r.sub(len)?;
 
         while sub.any_left() {
-            out.read_one(&mut sub, |_unk| {
-                Err(InvalidMessage::UnknownCertificateExtension)
-            })?;
+            // FORK: ignore an extension we do not implement rather than fail.
+            // A browser profile asks for things rustls dropped — signed
+            // certificate timestamps above all — and RFC 8446 lets the server
+            // answer, because we requested it. The certificate itself is still
+            // verified in full; this only skips a field we would not read.
+            out.read_one(&mut sub, |_unknown| Ok(()))?;
         }
 
         Ok(out)
