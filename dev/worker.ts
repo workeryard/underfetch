@@ -11,6 +11,9 @@
 import { profiles, type ProfileName } from '../src/impersonate';
 import { akamai } from '../src/verify';
 import { Session } from '../src/workers/index';
+import { cases } from './cases';
+import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases-extra';
+import type { Outcome } from './probe';
 
 /** Reports back what the handshake and the HTTP/2 preface looked like. */
 const CHECKER = 'https://tls.peet.ws/api/all';
@@ -97,6 +100,25 @@ export default {
       const url = query.get('url') ?? 'https://example.com/';
       const rounds = Math.min(Number(query.get('n') ?? 5), 20);
       return Response.json({ url, rounds, results: await benchmark(url, rounds) });
+    }
+
+    if (new URL(request.url).pathname === '/cases') {
+      const as = (query.get('as') ?? undefined) as ProfileName | undefined;
+      const only = query.get('only');
+      const bin = query.get('bin') ?? 'https://httpbin.org';
+      const suites = {
+        http: () => cases(bin, as),
+        plain: () => plainHttpCases(bin, as),
+        tls: () => tlsCases(as),
+        sites: () => siteCases(as),
+        websocket: () => websocketCases(as),
+      };
+      const results: Outcome[] = [];
+      for (const [name, suite] of Object.entries(suites)) {
+        if (only === null || only.split(',').includes(name)) results.push(...(await suite()));
+      }
+      const passed = results.filter((r) => r.ok).length;
+      return Response.json({ as: as ?? null, passed, total: results.length, results });
     }
 
     if (new URL(request.url).pathname === '/fetch') {
