@@ -40,6 +40,7 @@ impl TlsClient {
         signature_schemes: Option<Vec<u16>>,
         extensions: Option<Vec<u8>>,
         grease_named_group: Option<bool>,
+        extension_order: Option<Vec<u16>>,
     ) -> Result<TlsClient, JsValue> {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
@@ -69,12 +70,14 @@ impl TlsClient {
             verbatim_extensions: Fingerprint::extensions_from_bytes(&extensions.unwrap_or_default()),
             // Firefox GREASEs nothing at all, so this cannot be inferred.
             grease_named_group: grease_named_group.unwrap_or(false),
+            extension_order: extension_order.unwrap_or_default(),
         };
         if !fingerprint.cipher_suites.is_empty()
             || !fingerprint.signature_schemes.is_empty()
             || !fingerprint
                 .verbatim_extensions
                 .is_empty()
+            || !fingerprint.extension_order.is_empty()
         {
             config.fingerprint = Some(Arc::new(fingerprint));
         }

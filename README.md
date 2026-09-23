@@ -167,9 +167,12 @@ const myBrowser: Impersonation = {
 new Session({ impersonate: myBrowser });
 ```
 
-Firefox and Safari are not shipped yet. Firefox needs one thing the fork does
-not do: it sends its extensions in a fixed order, where rustls (like Chrome)
-shuffles them.
+Naming an `extensionOrder` makes that list authoritative: extensions the TLS
+library would have added but the profile does not name are dropped, because a
+browser sends what it sends and nothing more. Only what the standard requires
+last — PSK and ECH — survives regardless.
+
+Safari is not shipped yet; it is data, not work.
 
 Given no profile, nothing is impersonated and no GREASE is sent. Measure any of
 this yourself rather than trusting the table:

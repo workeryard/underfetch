@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { chrome, encodeExtensions } from '../src/impersonate';
+import { chrome, encodeExtensions, firefox, type Impersonation } from '../src/impersonate';
 import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
 
 /**
@@ -63,17 +63,35 @@ const hex = (value: number) => value.toString(16).padStart(4, '0');
 const truncatedSha256 = (text: string) =>
   createHash('sha256').update(text).digest('hex').slice(0, 12);
 
-function hello(alpn = 'http/1.1'): Hello {
+function helloFor(as: Impersonation, alpn = 'http/1.1'): Hello {
   initSync({ module: wasm });
   const session = new TlsClient(
     'example.com',
     alpn,
-    new Uint16Array(chrome.ciphers),
-    new Uint16Array(chrome.signatureSchemes),
-    encodeExtensions(chrome.extensions()),
-    chrome.greaseNamedGroup,
+    new Uint16Array(as.ciphers),
+    new Uint16Array(as.signatureSchemes),
+    encodeExtensions(as.extensions()),
+    as.greaseNamedGroup,
+    as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
   );
   return parse(session.outgoing());
+}
+
+const hello = (alpn = 'http/1.1') => helloFor(chrome, alpn);
+
+/** JA4's two hashes, from a ClientHello rather than from a claim. */
+function ja4(seen: Hello): { ciphers: string; extensions: string; counts: string } {
+  const suites = seen.ciphers.filter((c) => !isGrease(c)).map(hex);
+  const listed = seen.extensions
+    .filter((e) => !isGrease(e) && e !== 0x0000 && e !== 0x0010)
+    .map(hex)
+    .sort();
+  const all = seen.extensions.filter((e) => !isGrease(e)).length;
+  return {
+    ciphers: truncatedSha256([...suites].sort().join(',')),
+    extensions: truncatedSha256(`${listed.join(',')}_${seen.signatureSchemes.map(hex).join(',')}`),
+    counts: `${suites.length}${all}`,
+  };
 }
 
 /** The same session with no profile at all, which is rustls being itself. */
@@ -153,6 +171,20 @@ describe('the ClientHello', () => {
       .sort();
     const digest = truncatedSha256(`${listed.join(',')}_${signatureSchemes.map(hex).join(',')}`);
     expect(digest).toBe('d8a2da3f94cd');
+  });
+
+  it("is Firefox 148 when asked for Firefox, in Firefox's fixed order", () => {
+    const seen = helloFor(firefox);
+    const fingerprint = ja4(seen);
+
+    expect(fingerprint.counts).toBe('1715');
+    expect(fingerprint.ciphers).toBe('5b57614c22b0');
+    expect(fingerprint.extensions).toBe('a54fffd0eb61');
+    // Firefox GREASEs nothing at all, unlike Chrome.
+    expect(seen.ciphers.filter(isGrease)).toHaveLength(0);
+    expect(seen.extensions.filter(isGrease)).toHaveLength(0);
+    // And it sends them in the order it was given, not shuffled.
+    expect(seen.extensions.map(hex)).toEqual((firefox.extensionOrder ?? []).map(hex));
   });
 
   it('sends no GREASE at all when no profile was asked for', () => {

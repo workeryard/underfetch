@@ -985,6 +985,11 @@ extension_struct! {
         /// are never parsed, only emitted, so a fingerprint sees them and the
         /// handshake does not depend on them.
         pub(crate) verbatim_extensions: Vec<(u16, Vec<u8>)>,
+
+        /// FORK: the exact order to write extensions in, overriding the
+        /// shuffle. Chrome shuffles too, so it leaves this empty; Firefox and
+        /// Safari send a fixed order and cannot be imitated without it.
+        pub(crate) forced_order: Vec<u16>,
     }
 }
 
@@ -1017,6 +1022,7 @@ impl ClientExtensions<'_> {
             encrypted_client_hello_outer,
             order_seed,
             verbatim_extensions,
+            forced_order,
             contiguous_extensions,
         } = self;
         ClientExtensions {
@@ -1046,6 +1052,7 @@ impl ClientExtensions<'_> {
             encrypted_client_hello_outer,
             order_seed,
             verbatim_extensions,
+            forced_order,
             contiguous_extensions,
         }
     }
@@ -1104,26 +1111,70 @@ impl ClientExtensions<'_> {
     }
 }
 
+/// FORK: one extension written as it was given, with no interpretation.
+fn encode_verbatim(typ: u16, data: &[u8], out: &mut Vec<u8>) {
+    out.extend_from_slice(&typ.to_be_bytes());
+    out.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    out.extend_from_slice(data);
+}
+
 impl<'a> Codec<'a> for ClientExtensions<'a> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let order = self.used_extensions_in_encoding_order();
+        let built = self.used_extensions_in_encoding_order();
 
-        if order.is_empty() && self.verbatim_extensions.is_empty() {
+        if built.is_empty() && self.verbatim_extensions.is_empty() {
             return;
         }
 
         let body = LengthPrefixedBuffer::new(ListLength::U16, bytes);
-        // FORK: verbatim extensions lead, which is where a browser puts its
-        // first GREASE one. They carry no meaning to us and are never read back.
-        for (typ, data) in &self.verbatim_extensions {
-            body.buf
-                .extend_from_slice(&typ.to_be_bytes());
-            body.buf
-                .extend_from_slice(&(data.len() as u16).to_be_bytes());
-            body.buf.extend_from_slice(data);
+
+        // FORK: with no order asked for, verbatim extensions lead — which is
+        // where a browser that shuffles puts its first GREASE one anyway.
+        if self.forced_order.is_empty() {
+            for (typ, data) in &self.verbatim_extensions {
+                encode_verbatim(*typ, data, body.buf);
+            }
+            for item in built {
+                self.encode_one(item, body.buf);
+            }
+            return;
         }
-        for item in order {
-            self.encode_one(item, body.buf);
+
+        // FORK: a browser with a fixed order interleaves the two sets, so walk
+        // the order the caller gave and take each extension from whichever
+        // side holds it.
+        let mut written: Vec<u16> = Vec::with_capacity(self.forced_order.len());
+        for &wanted in &self.forced_order {
+            if let Some((typ, data)) = self
+                .verbatim_extensions
+                .iter()
+                .find(|(typ, _)| *typ == wanted)
+            {
+                encode_verbatim(*typ, data, body.buf);
+                written.push(wanted);
+            } else if let Some(item) = built
+                .iter()
+                .find(|item| u16::from(**item) == wanted)
+            {
+                self.encode_one(*item, body.buf);
+                written.push(wanted);
+            }
+        }
+
+        // An order the caller gave is the whole list: a browser sends what it
+        // sends and nothing else, so an extension rustls added but the caller
+        // did not name is dropped. The exceptions are the ones the standard
+        // requires last, which are structural rather than cosmetic.
+        for item in built {
+            let is_required_last = matches!(
+                item,
+                ExtensionType::EncryptedClientHelloOuterExtensions
+                    | ExtensionType::EncryptedClientHello
+                    | ExtensionType::PreSharedKey
+            );
+            if is_required_last && !written.contains(&u16::from(item)) {
+                self.encode_one(item, body.buf);
+            }
         }
     }
 

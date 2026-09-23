@@ -42,6 +42,9 @@ pub struct Fingerprint {
     pub verbatim_extensions: Vec<(u16, Vec<u8>)>,
     /// Puts a GREASE value at the head of the supported groups, as a browser does.
     pub grease_named_group: bool,
+    /// The exact order to write extensions in. Empty keeps rustls' shuffle,
+    /// which is what Chrome does; Firefox and Safari need a list.
+    pub extension_order: Vec<u16>,
 }
 
 impl Fingerprint {

@@ -243,11 +243,17 @@ fn emit_client_hello_for_retry(
         extended_master_secret_request: Some(()),
         certificate_status_request: Some(CertificateStatusRequest::build_ocsp()),
         protocols: extra_exts.protocols.clone(),
-        // FORK: extensions a browser sends that rustls does not build.
+        // FORK: extensions a browser sends that rustls does not build, and
+        // the order to write everything in.
         verbatim_extensions: config
             .fingerprint
             .as_ref()
             .map(|fp| fp.verbatim_extensions.clone())
+            .unwrap_or_default(),
+        forced_order: config
+            .fingerprint
+            .as_ref()
+            .map(|fp| fp.extension_order.clone())
             .unwrap_or_default(),
         ..Default::default()
     });
