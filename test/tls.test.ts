@@ -71,7 +71,7 @@ function socketOf(chunks: number[][]): { socket: ByteSocket; sent: number[] } {
 
 const collect = async (stream: ReadableStream<Uint8Array>) => {
   const out: number[] = [];
-  for (const reader = stream.getReader(); ; ) {
+  for (const reader = stream.getReader(); ;) {
     const { value, done } = await reader.read();
     if (done) return out;
     if (value) out.push(...value);

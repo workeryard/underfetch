@@ -8,8 +8,9 @@
  */
 
 import { connect } from 'cloudflare:sockets';
+import { profiles, type Impersonation, type ProfileName } from '../impersonate';
 import { Session as PlainSession, type SessionDefaults, type SessionRequestInit } from '../session';
-import { wasmTls } from '../wasm-tls';
+import { impersonating } from '../wasm-tls';
 import type { ByteSocket, Dial } from '../socket';
 
 /**
@@ -36,9 +37,24 @@ export const dial: Dial = (hostname, port) => {
  * const response = await session.fetch('https://api.example.com/v1/models');
  * ```
  */
+export interface WorkerSessionDefaults extends SessionDefaults {
+  /**
+   * Whose ClientHello to send: a name from `profiles`, a profile of your own,
+   * or nothing at all, which sends rustls' — safe, and recognisable as rustls.
+   */
+  impersonate?: ProfileName | Impersonation | undefined;
+}
+
 export class Session extends PlainSession {
-  constructor(defaults: SessionDefaults = {}) {
-    super({ dial, tls: wasmTls, ...defaults });
+  constructor({ impersonate, ...defaults }: WorkerSessionDefaults = {}) {
+    const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
+    super({
+      dial,
+      tls: impersonating(as),
+      // A browser's ALPN travels with its fingerprint, so a profile sets the
+      // headers' protocol too unless the caller said otherwise.
+      ...defaults,
+    });
   }
 }
 
@@ -50,6 +66,8 @@ export function socketFetch(
   return new Session().fetch(input, init);
 }
 
-export { wasmTls } from '../wasm-tls';
+export { impersonating, wasmTls } from '../wasm-tls';
+export { profiles } from '../impersonate';
+export type { Impersonation, ProfileName } from '../impersonate';
 export type { SessionDefaults, SessionRequestInit } from '../session';
 export type { HttpProxy, Proxy, Socks5Proxy } from '../socket';

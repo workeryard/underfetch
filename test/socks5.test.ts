@@ -37,7 +37,12 @@ describe('socks5', () => {
     const hello = [...new TextEncoder().encode('hello')];
     const { socket, sent } = fakeProxy([...OPEN, ...GRANTED, ...hello]);
 
-    const tunnel = await socks5Connect(socket, { kind: 'socks5', hostname: 'p', port: 1080 }, 'api.groq.com', 443);
+    const tunnel = await socks5Connect(
+      socket,
+      { kind: 'socks5', hostname: 'p', port: 1080 },
+      'api.groq.com',
+      443,
+    );
 
     // Greeting: version 5, one method, "no authentication".
     expect(sent.slice(0, 3)).toEqual([0x05, 0x01, 0x00]);
@@ -75,7 +80,12 @@ describe('socks5', () => {
     const body = [...new TextEncoder().encode('body')];
     const { socket } = fakeProxy([...OPEN, ...ipv6Reply, ...body]);
 
-    const tunnel = await socks5Connect(socket, { kind: 'socks5', hostname: 'p', port: 1080 }, 'example.com', 443);
+    const tunnel = await socks5Connect(
+      socket,
+      { kind: 'socks5', hostname: 'p', port: 1080 },
+      'example.com',
+      443,
+    );
     expect(await text(tunnel.readable)).toBe('body');
   });
 

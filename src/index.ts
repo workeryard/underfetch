@@ -21,6 +21,10 @@ export { Http1Error, http1Fetch } from './http1';
 export { Socks5Error, socks5Connect } from './socks5';
 export { TlsError, tlsTunnel } from './tls';
 export { tunnelThrough } from './tunnel';
+export { encodeExtensions, GREASE, profiles } from './impersonate';
+export { Session } from './session';
+export type { Extension, Impersonation, ProfileName } from './impersonate';
+export type { SessionDefaults, SessionOptions, SessionRequestInit } from './session';
 export type { TlsFactory, TlsSession } from './tls';
 export type { ByteSocket, Dial, HttpProxy, Proxy, Socks5Proxy } from './socket';
 

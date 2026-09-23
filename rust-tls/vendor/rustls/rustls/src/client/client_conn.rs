@@ -162,6 +162,10 @@ pub trait ResolvesClientCert: fmt::Debug + Send + Sync {
 /// [`RootCertStore`]: crate::RootCertStore
 #[derive(Clone, Debug)]
 pub struct ClientConfig {
+    /// FORK: what the ClientHello should look like on the wire. `None` leaves
+    /// rustls' own choices, which are safe but instantly recognisable.
+    pub fingerprint: Option<crate::sync::Arc<crate::fingerprint::Fingerprint>>,
+
     /// Which ALPN protocols we include in our client hello.
     /// If empty, no ALPN extension is sent.
     pub alpn_protocols: Vec<Vec<u8>>,

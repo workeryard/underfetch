@@ -6,7 +6,8 @@
 //! it. This crate puts rustls behind a small state machine instead: JavaScript
 //! owns the socket and pumps bytes through, and nothing here does any I/O.
 
-use rustls::{ClientConfig, ClientConnection, RootCertStore};
+use rustls::fingerprint::Fingerprint;
+use rustls::{CipherSuite, ClientConfig, ClientConnection, RootCertStore, SignatureScheme};
 use rustls_pki_types::ServerName;
 use std::io::{Cursor, Read, Write};
 use std::sync::Arc;
@@ -25,8 +26,20 @@ pub struct TlsClient {
 impl TlsClient {
     /// A client that will accept only a certificate valid for `hostname`,
     /// whatever address the underlying socket was opened to.
+    ///
+    /// The last three arguments shape the ClientHello, and come from the
+    /// caller rather than from here: adding a browser is then a table of
+    /// numbers in TypeScript instead of a rebuild of this crate. Leave them
+    /// out and rustls makes its own choices, which are safe and instantly
+    /// recognisable as rustls.
     #[wasm_bindgen(constructor)]
-    pub fn new(hostname: &str, alpn: Option<String>) -> Result<TlsClient, JsValue> {
+    pub fn new(
+        hostname: &str,
+        alpn: Option<String>,
+        ciphers: Option<Vec<u16>>,
+        signature_schemes: Option<Vec<u16>>,
+        extensions: Option<Vec<u8>>,
+    ) -> Result<TlsClient, JsValue> {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
@@ -39,6 +52,30 @@ impl TlsClient {
                 .filter(|name| !name.is_empty())
                 .map(|name| name.as_bytes().to_vec())
                 .collect();
+        }
+
+        let fingerprint = Fingerprint {
+            cipher_suites: ciphers
+                .unwrap_or_default()
+                .into_iter()
+                .map(CipherSuite::from)
+                .collect(),
+            signature_schemes: signature_schemes
+                .unwrap_or_default()
+                .into_iter()
+                .map(SignatureScheme::from)
+                .collect(),
+            verbatim_extensions: Fingerprint::extensions_from_bytes(&extensions.unwrap_or_default()),
+            // Anything that GREASEs its extensions GREASEs its groups too.
+            grease_named_group: true,
+        };
+        if !fingerprint.cipher_suites.is_empty()
+            || !fingerprint.signature_schemes.is_empty()
+            || !fingerprint
+                .verbatim_extensions
+                .is_empty()
+        {
+            config.fingerprint = Some(Arc::new(fingerprint));
         }
 
         let name = ServerName::try_from(hostname.to_string())

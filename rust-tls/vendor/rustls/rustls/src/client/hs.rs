@@ -215,9 +215,13 @@ fn emit_client_hello_for_retry(
     let mut exts = Box::new(ClientExtensions {
         // offer groups which are usable for any offered version
         named_groups: Some({
-            // FORK: a browser puts a GREASE value first (RFC 8701). Its absence
-            // is the loudest thing about a rustls ClientHello.
-            let mut groups = vec![crate::grease::named_group()];
+            // FORK: a browser puts a GREASE value at the head of this list.
+            let mut groups: Vec<_> = config
+                .fingerprint
+                .as_ref()
+                .and_then(|fp| fp.named_group())
+                .into_iter()
+                .collect();
             groups.extend(
                 config
                     .provider
@@ -229,13 +233,22 @@ fn emit_client_hello_for_retry(
             groups
         }),
         supported_versions: Some(supported_versions),
-        // FORK: Chrome's list, in Chrome's order.
-        signature_schemes: Some(crate::grease::signature_schemes()),
+        // FORK: the caller's list, in the caller's order, when it gave one.
+        signature_schemes: Some(match config.fingerprint.as_ref() {
+            Some(fp) if !fp.signature_schemes.is_empty() => fp.signature_schemes.clone(),
+            _ => config
+                .verifier
+                .supported_verify_schemes(),
+        }),
         extended_master_secret_request: Some(()),
         certificate_status_request: Some(CertificateStatusRequest::build_ocsp()),
         protocols: extra_exts.protocols.clone(),
-        // FORK: the extensions a browser sends that rustls does not build.
-        verbatim_extensions: crate::grease::extensions(config.provider.secure_random),
+        // FORK: extensions a browser sends that rustls does not build.
+        verbatim_extensions: config
+            .fingerprint
+            .as_ref()
+            .map(|fp| fp.verbatim_extensions.clone())
+            .unwrap_or_default(),
         ..Default::default()
     });
 
@@ -382,9 +395,27 @@ fn emit_client_hello_for_retry(
     // but they also need to keep the same order as the previous ClientHello
     exts.order_seed = input.hello.extension_order_seed;
 
-    // FORK: offer Chrome's list in Chrome's order rather than our own. Half of
-    // it we cannot negotiate; `grease` explains why that is survivable.
-    let cipher_suites = crate::grease::cipher_suites();
+    // FORK: offer the caller's list, in the caller's order, when it gave one.
+    // Half of a browser's list we cannot negotiate; `fingerprint` says why
+    // that is survivable.
+    let cipher_suites = match config.fingerprint.as_ref() {
+        Some(fp) if !fp.cipher_suites.is_empty() => fp.cipher_suites.clone(),
+        _ => {
+            let mut ours: Vec<_> = config
+                .provider
+                .cipher_suites
+                .iter()
+                .filter_map(|cs| match cs.usable_for_protocol(cx.common.protocol) {
+                    true => Some(cs.suite()),
+                    false => None,
+                })
+                .collect();
+            if supported_versions.tls12 {
+                ours.push(CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV);
+            }
+            ours
+        }
+    };
 
     let mut chp_payload = ClientHelloPayload {
         client_version: ProtocolVersion::TLSv1_2,

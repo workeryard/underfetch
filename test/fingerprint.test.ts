@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { chrome, encodeExtensions } from '../src/impersonate';
 import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
 
 /**
@@ -64,8 +65,20 @@ const truncatedSha256 = (text: string) =>
 
 function hello(alpn = 'http/1.1'): Hello {
   initSync({ module: wasm });
-  const session = new TlsClient('example.com', alpn);
+  const session = new TlsClient(
+    'example.com',
+    alpn,
+    new Uint16Array(chrome.ciphers),
+    new Uint16Array(chrome.signatureSchemes),
+    encodeExtensions(chrome.extensions()),
+  );
   return parse(session.outgoing());
+}
+
+/** The same session with no profile at all, which is rustls being itself. */
+function plainHello(): Hello {
+  initSync({ module: wasm });
+  return parse(new TlsClient('example.com', 'http/1.1').outgoing());
 }
 
 describe('the ClientHello', () => {
@@ -139,6 +152,25 @@ describe('the ClientHello', () => {
       .sort();
     const digest = truncatedSha256(`${listed.join(',')}_${signatureSchemes.map(hex).join(',')}`);
     expect(digest).toBe('d8a2da3f94cd');
+  });
+
+  it('sends no GREASE at all when no profile was asked for', () => {
+    const { ciphers, extensions } = plainHello();
+    expect(ciphers.filter(isGrease)).toHaveLength(0);
+    expect(extensions.filter(isGrease)).toHaveLength(0);
+    // And none of the extensions a browser sends but rustls does not build.
+    expect(extensions).not.toContain(0x44cd);
+    expect(extensions).not.toContain(0xfe0d);
+  });
+
+  it('draws fresh ECH noise for every connection', () => {
+    const first = hello().extensions;
+    const second = hello().extensions;
+    // The types are stable even though the bytes underneath are not.
+    expect(first.filter(isGrease)).toEqual(second.filter(isGrease));
+    expect(encodeExtensions(chrome.extensions())).not.toEqual(
+      encodeExtensions(chrome.extensions()),
+    );
   });
 
   it('still says http/1.1, because that is all it can speak', () => {

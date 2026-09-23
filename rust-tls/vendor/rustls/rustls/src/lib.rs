@@ -435,7 +435,7 @@ mod conn;
 /// Crypto provider interface.
 pub mod crypto;
 mod error;
-mod grease;
+pub mod fingerprint;
 mod hash_hs;
 #[cfg(any(feature = "std", feature = "hashbrown"))]
 mod limited_cache;
