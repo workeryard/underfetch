@@ -13,6 +13,7 @@ import { akamai } from '../src/fingerprint/verify';
 import { Session } from '../src/workers/index';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
+import { sessionCases } from './cases/session';
 import type { Outcome } from './cases/probe';
 
 /** Reports back what the handshake and the HTTP/2 preface looked like. */
@@ -109,6 +110,7 @@ export default {
       const suites = {
         http: () => cases(bin, as),
         plain: () => plainHttpCases(bin, as),
+        session: () => sessionCases(as),
         tls: () => tlsCases(as),
         sites: () => siteCases(as),
         websocket: () => websocketCases(as),
