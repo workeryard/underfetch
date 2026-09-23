@@ -206,7 +206,7 @@ different TLS stack means implementing six methods.
 | Timeouts and `AbortSignal`                       | yes                         |
 | Redirects, with credentials dropped across hosts | yes                         |
 | HTTP/2, with HPACK and flow control              | yes                         |
-| Browser impersonation, TLS and HTTP/2            | Chrome, Firefox, Safari     |
+| Browser impersonation, TLS and HTTP/2            | 16 browsers, see below      |
 | Cookies, with domain and path scoping            | yes                         |
 | Retries, idempotent methods only by default      | yes                         |
 | HTTP/3                                           | never — a Worker has no UDP |
@@ -223,18 +223,29 @@ nothing else on the web omits it. Ask for a browser instead:
 const session = new Session({ impersonate: 'chrome' });
 ```
 
-Both fingerprints a server reads then match the real browser exactly — JA4 from
-the handshake, and the Akamai string from the HTTP/2 settings:
+Sixteen browsers are built in, under the names impers gives them, and both
+fingerprints a server reads match the real browser for each — JA4 from the
+handshake, and the Akamai string from the HTTP/2 settings:
+
+| family         | profiles                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| Chrome         | `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` |
+| Chrome Android | `chrome131_android`                                                                                          |
+| Firefox        | `firefox133` `firefox135` `firefox144`                                                                       |
+| Safari         | `safari260` `safari2601`                                                                                     |
+| Tor            | `tor145`                                                                                                     |
+
+`chrome`, `chrome_android`, `firefox`, `safari` and `tor` name the newest of
+each. The defaults, for instance:
 
 | profile   | JA4                                    | Akamai                                                 |
 | --------- | -------------------------------------- | ------------------------------------------------------ |
-| `chrome`  | `t13d1516h2_8daaf6152771_d8a2da3f94cd` | `1:65536;2:0;4:6291456;6:262144\|15663105\|0\|m,a,s,p` |
-| `firefox` | `t13d1715h2_5b57614c22b0_a54fffd0eb61` | `1:65536;2:0;4:131072;5:16384\|12517377\|0\|m,p,a,s`   |
-| `safari`  | `t13d2013h2_a09f3c656075_7f0f34a4126d` | `2:0;3:100;4:2097152;8:1;9:1\|10485760\|0\|m,s,p,a`    |
+| `chrome`  | `t13d1516h2_8daaf6152771_806a8c22fdea` | `1:65536;2:0;4:6291456;6:262144\|15663105\|0\|m,a,s,p` |
+| `firefox` | `t13d1717h2_5b57614c22b0_3cbfd9057e0d` | `1:65536;2:0;4:131072;5:16384\|12517377\|0\|m,p,a,s`   |
+| `safari`  | `t13d2013h2_a09f3c656075_7f0f34a4126d` | `2:0;3:100;4:2097152;9:1\|10420225\|0\|m,s,a,p`        |
 
-The three are deliberately unalike, which is the point: Chrome GREASEs and
-shuffles its extensions, Firefox does neither, Safari GREASEs but keeps a fixed
-order. Anything between those is expressible.
+Chrome GREASEs and shuffles its extensions, Firefox does neither, Safari
+GREASEs but keeps a fixed order.
 
 A profile also carries the browser's **request headers in the browser's
 order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the rest —
@@ -247,17 +258,25 @@ and no zstd, and advertising what cannot be decoded is how a handshake breaks.
 And the `sec-ch-ua` brand list rotates between Chrome releases, so check it
 against a real browser if it matters to you.
 
-The numbers come from real browsers rather than from memory:
-[utls](https://github.com/refraction-networking/utls)'s `u_parrots.go` for the
-ClientHello, and [th1](https://github.com/lexiforest/th1)'s `signatures/` for
-headers and HTTP/2 settings.
+The browsers are data, not code: `src/browsers.ts`, generated from
+[curl-impersonate](https://github.com/lexiforest/curl-impersonate)'s
+`tests/signatures`, which are ClientHellos and HTTP/2 openings captured from
+the real browsers — the same data impers is tested against. The fingerprints
+each profile must match are computed from those captures, not from what we
+send, so the tests compare us with the browser rather than with ourselves.
+
+```
+pnpm import:browsers     # regenerate from the pinned commit
+```
+
+Older targets (Chrome before 119, Edge, Safari before 26, Safari on iOS) are
+not in yet: their ClientHellos carry a `padding` extension whose length
+depends on the finished message, which the TLS module cannot size yet.
 
 Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
 string is right in every other field.
 
-A profile is data, not code — see `src/impersonate.ts`. Adding a browser means
-writing down what it sends, taken from
-[utls](https://github.com/refraction-networking/utls)'s `u_parrots.go`:
+A profile of your own is the same shape, written by hand:
 
 ```ts
 const myBrowser: Impersonation = {

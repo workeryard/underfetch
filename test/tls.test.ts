@@ -40,7 +40,8 @@ class FakeSession implements TlsSession {
     return out;
   }
   send(data: Uint8Array): void {
-    if (this.#out.length + data.length > this.sendLimit) throw new Error('failed to write whole buffer');
+    if (this.#out.length + data.length > this.sendLimit)
+      throw new Error('failed to write whole buffer');
     this.#out.push(...data);
   }
   plaintext(): Uint8Array {

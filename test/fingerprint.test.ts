@@ -2,7 +2,15 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { chrome, encodeExtensions, firefox, safari, type Impersonation } from '../src/impersonate';
+import {
+  chrome,
+  encodeExtensions,
+  firefox,
+  profiles,
+  safari,
+  type Impersonation,
+} from '../src/impersonate';
+import { ja4 as fullJa4, parseClientHello } from '../src/verify';
 import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
 
 /**
@@ -11,7 +19,8 @@ import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
  * deterministic function of the configuration, so it can be read straight out
  * of the session and taken apart.
  *
- * The values are Chrome 133's, as recorded by utls in `u_parrots.go`.
+ * The pinned values are the browsers' own, from curl-impersonate's captures;
+ * Chrome 133's also agree with what utls records in `u_parrots.go`.
  */
 
 const wasm = new WebAssembly.Module(
@@ -158,7 +167,7 @@ describe('the ClientHello', () => {
   });
 
   it('matches Chrome 133 in both halves of its JA4', () => {
-    const { ciphers, extensions, signatureSchemes } = hello();
+    const { ciphers, extensions, signatureSchemes } = helloFor(profiles.chrome133a);
 
     const suites = ciphers.filter((c) => !isGrease(c)).map(hex);
     expect(truncatedSha256([...suites].sort().join(','))).toBe('8daaf6152771');
@@ -173,13 +182,13 @@ describe('the ClientHello', () => {
     expect(digest).toBe('d8a2da3f94cd');
   });
 
-  it("is Firefox 148 when asked for Firefox, in Firefox's fixed order", () => {
+  it("is Firefox 144 when asked for Firefox, in Firefox's fixed order", () => {
     const seen = helloFor(firefox);
     const fingerprint = ja4(seen);
 
-    expect(fingerprint.counts).toBe('1715');
+    expect(fingerprint.counts).toBe('1717');
     expect(fingerprint.ciphers).toBe('5b57614c22b0');
-    expect(fingerprint.extensions).toBe('a54fffd0eb61');
+    expect(fingerprint.extensions).toBe('3cbfd9057e0d');
     // Firefox GREASEs nothing at all, unlike Chrome.
     expect(seen.ciphers.filter(isGrease)).toHaveLength(0);
     expect(seen.extensions.filter(isGrease)).toHaveLength(0);
@@ -187,7 +196,7 @@ describe('the ClientHello', () => {
     expect(seen.extensions.map(hex)).toEqual((firefox.extensionOrder ?? []).map(hex));
   });
 
-  it('is Safari 26.3 when asked for Safari, GREASE and fixed order together', () => {
+  it('is Safari 26.0.1 when asked for Safari, GREASE and fixed order together', () => {
     const seen = helloFor(safari);
     const fingerprint = ja4(seen);
 
@@ -223,5 +232,22 @@ describe('the ClientHello', () => {
     // first handshake a server accepted it on, so this stays until then.
     const { extensions } = hello();
     expect(extensions).toContain(0x0010);
+  });
+
+  // The expected values were computed from the real browser's capture when it
+  // was imported, so this compares what we send with what the browser sent.
+  it.each(Object.keys(profiles))('sends what the captured browser sent: %s', async (name) => {
+    const as = profiles[name as keyof typeof profiles];
+    initSync({ module: wasm });
+    const session = new TlsClient(
+      'example.com',
+      as.alpn.join(','),
+      new Uint16Array(as.ciphers),
+      new Uint16Array(as.signatureSchemes),
+      encodeExtensions(as.extensions()),
+      as.greaseNamedGroup,
+      as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
+    );
+    expect(await fullJa4(parseClientHello(session.outgoing()))).toBe(as.expected.ja4);
   });
 });

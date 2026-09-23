@@ -13,7 +13,7 @@
  */
 
 import type { Http2Profile } from './h2/connection';
-import { GREASE } from './impersonate';
+import { GREASE } from './grease';
 
 export interface ClientHello {
   ciphers: number[];

@@ -47,4 +47,9 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...noModuleState],
     },
   },
+  {
+    // Generated data, one browser after another; its length is the catalogue's.
+    files: ['src/browsers.ts'],
+    rules: { 'max-lines': 'off' },
+  },
 );
