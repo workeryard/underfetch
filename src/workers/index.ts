@@ -114,6 +114,9 @@ export async function selfTest(): Promise<Verdict[]> {
 export { akamai, ja4, parseClientHello, verifyProfile } from '../verify';
 export type { ClientHello, Verdict } from '../verify';
 export { impersonating, wasmTls } from '../wasm-tls';
+export { CookieJar } from '../cookies';
+export type { Cookie } from '../cookies';
+export type { RetryOptions } from '../retry';
 export { profiles } from '../impersonate';
 export type { Impersonation, ProfileName } from '../impersonate';
 export type { SessionDefaults, SessionRequestInit } from '../session';

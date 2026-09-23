@@ -130,6 +130,7 @@ await request('PATCH', url, { json: { name: 'new' } });
 | `proxy`                          | overrides the session's; `null` forces this one direct |
 | `timeoutMs`                      | gives up, headers and body together                    |
 | `allowRedirects`, `maxRedirects` | default `true` and `20`                                |
+| `retry`                          | a count, `RetryOptions`, or `false`                    |
 | `impersonate`                    | whose ClientHello to send                              |
 
 What comes back is a plain `Response`, deliberately. It already carries
@@ -141,6 +142,40 @@ is where the chain ended.
 A redirect that changes host drops `authorization` and `cookie`. A 307 or 308
 repeats the request body, so a body is buffered before the first hop; if that
 matters, turn redirects off.
+
+### Cookies
+
+A session can keep them, and a jar is always something the caller holds — one
+isolate serves many requests, and a jar shared by accident would hand one user
+another's session.
+
+```ts
+const session = new Session({ cookies: true });
+await session.post('https://api.example.com/login', { json: { user, password } });
+await session.get('https://api.example.com/me'); // carries what login set
+
+session.cookies?.all(); // or pass your own CookieJar in to share it
+```
+
+Domain, path, `Secure`, `Max-Age` and `Expires` are all honoured, including a
+server deleting a cookie by dating it in the past. A cookie set partway through
+a redirect is picked up on the next hop.
+
+### Retries
+
+Off the shelf, two extra attempts on 408, 429 and the 5xx that mean _later_,
+plus anything that failed to connect at all. Backoff is exponential with
+jitter, and `Retry-After` is obeyed up to a ceiling.
+
+```ts
+new Session({ retry: { limit: 3, maxDelayMs: 10_000 } });
+await session.post(url, { json: body, retry: { methods: ['POST'] } });
+```
+
+**A POST is never repeated by default.** Only methods defined to be idempotent
+are, because repeating a request that changed something may change it twice.
+Say `methods: ['POST']` when you know it is safe. An `AbortError` is never
+retried either: that is the caller changing their mind, not a failure.
 
 ### Without the Workers adapter
 
@@ -172,7 +207,8 @@ different TLS stack means implementing six methods.
 | Redirects, with credentials dropped across hosts | yes                         |
 | HTTP/2, with HPACK and flow control              | yes                         |
 | Browser impersonation, TLS and HTTP/2            | Chrome, Firefox, Safari     |
-| Cookies, retries                                 | not yet                     |
+| Cookies, with domain and path scoping            | yes                         |
+| Retries, idempotent methods only by default      | yes                         |
 | HTTP/3                                           | never — a Worker has no UDP |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is

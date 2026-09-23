@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, buildRequest, followRedirects } from '../src/api';
+import { CookieJar } from '../src/cookies';
 import { Session } from '../src/session';
 import type { ByteSocket, Dial } from '../src/socket';
 import type { TlsSession } from '../src/tls';
@@ -190,6 +191,52 @@ describe('redirects', () => {
     });
     expect(seen).toEqual(['https://example.com/one', 'https://example.com/two']);
     expect(await response.text()).toBe('done');
+  });
+});
+
+describe('session cookies', () => {
+  const sets = (cookie: string) =>
+    `HTTP/1.1 200 OK\r\nSet-Cookie: ${cookie}\r\nContent-Length: 2\r\n\r\nok`;
+
+  it('sends back on the second request what the first was given', async () => {
+    const wire = net([sets('session=abc; Path=/'), OK]);
+    const session = sessionOn(wire, { cookies: true, baseUrl: 'https://e.com' });
+
+    await (await session.get('/one')).text();
+    await (await session.get('/two')).text();
+
+    expect(wire.sent[0]).not.toContain('cookie:');
+    expect(wire.sent[1]).toContain('cookie: session=abc');
+  });
+
+  it('holds nothing at all unless asked', async () => {
+    const wire = net([sets('session=abc; Path=/'), OK]);
+    const session = sessionOn(wire, { baseUrl: 'https://e.com' });
+
+    await (await session.get('/one')).text();
+    await (await session.get('/two')).text();
+
+    expect(wire.sent[1]).not.toContain('cookie:');
+    expect(session.cookies).toBeUndefined();
+  });
+
+  it('picks up a cookie set partway through a redirect', async () => {
+    const wire = net([
+      `HTTP/1.1 302 Found\r\nLocation: /done\r\nSet-Cookie: hop=1; Path=/\r\nContent-Length: 0\r\n\r\n`,
+      OK,
+    ]);
+    const session = sessionOn(wire, { cookies: true, baseUrl: 'https://e.com' });
+    await (await session.get('/start')).text();
+
+    expect(wire.sent[1]).toContain('cookie: hop=1');
+  });
+
+  it('lets the caller keep the jar and read it', async () => {
+    const jar = new CookieJar();
+    const wire = net([sets('token=xyz; Path=/')]);
+    await (await sessionOn(wire, { cookies: jar, baseUrl: 'https://e.com' }).get('/one')).text();
+
+    expect(jar.all().map((c) => [c.name, c.value])).toEqual([['token', 'xyz']]);
   });
 });
 

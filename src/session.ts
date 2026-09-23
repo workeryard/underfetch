@@ -7,6 +7,8 @@
  */
 
 import { buildRequest, followRedirects, type BodyOptions, type RedirectOptions } from './api';
+import { CookieJar } from './cookies';
+import { withRetry, type RetryOptions } from './retry';
 import { proxyFetch } from './index';
 import type { Http2Profile } from './h2/connection';
 import type { Dial, Proxy } from './socket';
@@ -15,6 +17,14 @@ import type { TlsFactory } from './tls';
 export interface SessionDefaults extends RedirectOptions {
   /** Prefixed to a path, so callers can ask for `/v1/models`. */
   baseUrl?: string | undefined;
+  /**
+   * Keep cookies across requests. `true` makes a jar of its own; pass one to
+   * share it, or to read what a server set. A jar is per-user state, so it is
+   * never shared by default.
+   */
+  cookies?: boolean | CookieJar | undefined;
+  /** Repeat a failed request. See `RetryOptions`; `false` turns it off. */
+  retry?: RetryOptions | number | false | undefined;
   /** Where requests leave from. Left out, they are dialled directly. */
   proxy?: Proxy | undefined;
   /** Gives up after this many milliseconds. */
@@ -36,6 +46,8 @@ export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOp
   /** Overrides the session's proxy. `null` forces this one request direct. */
   proxy?: Proxy | null | undefined;
   timeoutMs?: number | undefined;
+  /** Overrides the session's retry policy for this one request. */
+  retry?: RetryOptions | number | false | undefined;
 }
 
 /** The session's headers, with anything the request set taking precedence. */
@@ -53,12 +65,24 @@ export class Session {
   readonly #tls: TlsFactory;
   readonly #http2: Http2Profile | undefined;
   readonly #defaults: SessionDefaults;
+  readonly #jar: CookieJar | undefined;
 
   constructor({ dial, tls, http2, ...defaults }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
     this.#http2 = http2;
     this.#defaults = defaults;
+    this.#jar =
+      defaults.cookies === true
+        ? new CookieJar()
+        : defaults.cookies instanceof CookieJar
+          ? defaults.cookies
+          : undefined;
+  }
+
+  /** The cookies this session is holding, if it was asked to hold any. */
+  get cookies(): CookieJar | undefined {
+    return this.#jar;
   }
 
   /** The proxy this session uses when a request does not say otherwise. */
@@ -78,7 +102,7 @@ export class Session {
     const proxy = init?.proxy === undefined ? this.#defaults.proxy : (init.proxy ?? undefined);
     const timeoutMs = init?.timeoutMs ?? this.#defaults.timeoutMs;
 
-    const send = (one: Request) =>
+    const once = (one: Request) =>
       proxyFetch(one, {
         dial: this.#dial,
         tls: this.#tls,
@@ -88,10 +112,29 @@ export class Session {
         ...(init?.signal ? { signal: init.signal } : {}),
       });
 
-    return followRedirects(outgoing, send, {
-      allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
-      maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
-    });
+    // Cookies belong around a single hop, so a redirect both sends what it
+    // should and keeps whatever it is handed on the way.
+    const jar = this.#jar;
+    const send = async (one: Request) => {
+      if (jar === undefined) return once(one);
+      const url = new URL(one.url);
+      const held = jar.header(url);
+      const withCookies =
+        held === null || one.headers.has('cookie')
+          ? one
+          : new Request(one, { headers: new Headers([...one.headers, ['cookie', held]]) });
+      const response = await once(withCookies);
+      jar.store(url, response.headers.getSetCookie());
+      return response;
+    };
+
+    const followed = (one: Request) =>
+      followRedirects(one, send, {
+        allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
+        maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
+      });
+
+    return withRetry(outgoing, followed, init?.retry ?? this.#defaults.retry ?? {});
   }
 
   get(url: string | URL, init?: SessionRequestInit): Promise<Response> {
