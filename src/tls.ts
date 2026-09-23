@@ -34,13 +34,30 @@ export class TlsError extends Error {
   override name = 'TlsError';
 }
 
-/** Feeds a whole chunk in, however many passes the session needs to take it. */
-function receiveAll(session: TlsSession, chunk: Uint8Array): void {
+/**
+ * The most plaintext handed to the session at once. rustls buffers what it
+ * has not yet encrypted and refuses a write past its limit (64 KB), so a
+ * large body has to go through in pieces, each flushed before the next.
+ */
+const SEND_SLICE = 16_384;
+
+/**
+ * Feeds a whole chunk in, however many passes the session needs to take it,
+ * and returns the plaintext that came out. It is drained after every pass:
+ * rustls holds at most 16 KB of unread plaintext and refuses to read further,
+ * so feeding a large chunk first and reading afterwards fails on any body
+ * bigger than that.
+ */
+function receiveAll(session: TlsSession, chunk: Uint8Array): Uint8Array[] {
+  const plain: Uint8Array[] = [];
   for (let offset = 0; offset < chunk.length;) {
     const taken = session.receive(chunk.subarray(offset));
     if (taken <= 0) throw new TlsError('the TLS session stopped accepting data');
     offset += taken;
+    const out = session.plaintext();
+    if (out.length > 0) plain.push(out);
   }
+  return plain;
 }
 
 /**
@@ -66,22 +83,23 @@ export async function tlsTunnel(
     if (out.length > 0) await writer.write(out);
   };
 
+  // Anything the server volunteered along with the handshake is already
+  // decrypted and would be lost if the reader started from the socket again.
+  const early: Uint8Array[] = [];
   while (session.handshaking) {
     await flush();
     if (!session.handshaking) break;
     const { value, done } = await reader.read();
     if (done) throw new TlsError('the connection closed during the TLS handshake');
-    if (value) receiveAll(session, value);
+    if (value) early.push(...receiveAll(session, value));
   }
   await flush();
-
-  // Anything the server volunteered along with the handshake is already
-  // decrypted and would be lost if the reader started from the socket again.
-  const early = session.plaintext();
+  const left = session.plaintext();
+  if (left.length > 0) early.push(left);
 
   const readable = new ReadableStream<Uint8Array>({
     start(controller) {
-      if (early.length > 0) controller.enqueue(early);
+      for (const plain of early) controller.enqueue(plain);
     },
     async pull(controller) {
       for (;;) {
@@ -90,12 +108,11 @@ export async function tlsTunnel(
           controller.close();
           return;
         }
-        if (value) receiveAll(session, value);
-        const plain = session.plaintext();
+        const plain = value ? receiveAll(session, value) : [];
         // A record may span several TCP reads and yield nothing yet; keep
         // reading rather than closing the body on an empty pass.
         if (plain.length > 0) {
-          controller.enqueue(plain);
+          for (const out of plain) controller.enqueue(out);
           return;
         }
       }
@@ -105,8 +122,10 @@ export async function tlsTunnel(
 
   const writable = new WritableStream<Uint8Array>({
     async write(chunk) {
-      session.send(chunk);
-      await flush();
+      for (let offset = 0; offset < chunk.length; offset += SEND_SLICE) {
+        session.send(chunk.subarray(offset, offset + SEND_SLICE));
+        await flush();
+      }
     },
     async close() {
       session.close();

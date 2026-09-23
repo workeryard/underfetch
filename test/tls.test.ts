@@ -14,9 +14,16 @@ class FakeSession implements TlsSession {
   #out: number[] = [];
   closed = false;
 
-  constructor(private readonly handshakeReplies = 1) {}
+  constructor(
+    private readonly handshakeReplies = 1,
+    /** Unread plaintext past which it refuses to read, as rustls does. */
+    private readonly plainLimit = Infinity,
+    /** Unsent bytes past which it refuses a write, as rustls does. */
+    private readonly sendLimit = Infinity,
+  ) {}
 
   receive(data: Uint8Array): number {
+    if (this.#plain.length > this.plainLimit) throw new Error('received plaintext buffer full');
     // Takes at most two bytes a call, which is what a real session may do.
     const slice = data.subarray(0, 2);
     this.taken.push(...slice);
@@ -33,6 +40,7 @@ class FakeSession implements TlsSession {
     return out;
   }
   send(data: Uint8Array): void {
+    if (this.#out.length + data.length > this.sendLimit) throw new Error('failed to write whole buffer');
     this.#out.push(...data);
   }
   plaintext(): Uint8Array {
@@ -115,5 +123,26 @@ describe('tls pump', () => {
 
     expect(sent).toEqual([7, 8, 0xff]);
     expect(session.closed).toBe(true);
+  });
+
+  it('drains plaintext between passes, so a big chunk does not fill the session', async () => {
+    // Two bytes a pass and a limit of two: reading only at the end would fail.
+    const session = new FakeSession(1, 2);
+    const body = Array.from({ length: 40 }, (_, i) => i);
+    const { socket } = socketOf([[1], body]);
+
+    const tunnel = await tlsTunnel(socket, session);
+    expect(await collect(tunnel.readable)).toEqual(body);
+  });
+
+  it('writes a body larger than the session buffers in pieces', async () => {
+    const session = new FakeSession(1, Infinity, 20_000);
+    const { socket, sent } = socketOf([[1]]);
+
+    const tunnel = await tlsTunnel(socket, session);
+    const writer = tunnel.writable.getWriter();
+    await writer.write(new Uint8Array(100_000).fill(3));
+
+    expect(sent.length).toBe(100_000);
   });
 });
