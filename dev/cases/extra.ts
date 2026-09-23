@@ -51,6 +51,8 @@ export async function tlsCases(profile: WorkerSessionDefaults['impersonate']) {
     ['ECC certificate', 'https://ecc256.badssl.com/'],
     ['RSA 4096', 'https://rsa4096.badssl.com/'],
     ['SHA-256 chain', 'https://sha256.badssl.com/'],
+    // The server sends its leaf alone; browsers fetch the rest (AIA).
+    ['incomplete chain, completed as a browser would', 'https://incomplete-chain.badssl.com/'],
   ] as const) {
     out.push(
       await run('tls', label, async () => {

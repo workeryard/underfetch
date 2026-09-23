@@ -14,6 +14,7 @@ import { Session } from '../src/workers/index';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
 import { sessionCases } from './cases/session';
+import { wafCases } from './cases/waf';
 import type { Outcome } from './cases/probe';
 
 /** Reports back what the handshake and the HTTP/2 preface looked like. */
@@ -114,6 +115,7 @@ export default {
         tls: () => tlsCases(as),
         sites: () => siteCases(as),
         websocket: () => websocketCases(as),
+        waf: () => wafCases(as),
       };
       const results: Outcome[] = [];
       for (const [name, suite] of Object.entries(suites)) {
