@@ -23,7 +23,7 @@ const noModuleState = [
 }));
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/', 'rust-tls/'] },
+  { ignores: ['**/node_modules/', 'rust-tls/', '.wrangler/'] },
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {

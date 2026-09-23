@@ -46,6 +46,15 @@ export interface Impersonation {
    * connection, so anything that must differ every time can differ.
    */
   extensions: () => readonly Extension[];
+  /**
+   * What the real browser's fingerprints are. `verifyProfile` checks what we
+   * actually emit against these, so a profile that drifts fails loudly instead
+   * of quietly impersonating nobody.
+   */
+  expected: {
+    ja4: string;
+    akamai: string;
+  };
 }
 
 const bytes = (...values: number[]) => new Uint8Array(values);
@@ -144,6 +153,10 @@ export const chrome: Impersonation = {
     [0xfe0d, greaseEch(176)], // encrypted_client_hello
     [GREASE[1], bytes(0x00)],
   ],
+  expected: {
+    ja4: 't13d1516h2_8daaf6152771_d8a2da3f94cd',
+    akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+  },
 };
 
 /** A list of signature schemes, length-prefixed, as several extensions want. */
@@ -194,6 +207,10 @@ export const firefox: Impersonation = {
     [0x001b, bytes(0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03)], // zlib, brotli, zstd
     [0xfe0d, greaseEch(223)], // encrypted_client_hello
   ],
+  expected: {
+    ja4: 't13d1715h2_5b57614c22b0_a54fffd0eb61',
+    akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
+  },
 };
 
 /**
@@ -265,6 +282,10 @@ export const safari: Impersonation = {
     [0x001b, bytes(0x02, 0x00, 0x01)], // compress_certificate: zlib
     [GREASE[1], bytes(0x00)],
   ],
+  expected: {
+    ja4: 't13d2013h2_a09f3c656075_7f0f34a4126d',
+    akamai: '2:0;3:100;4:2097152;8:1;9:1|10485760|0|m,s,p,a',
+  },
 };
 
 export const profiles = { chrome, firefox, safari } as const;

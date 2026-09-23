@@ -172,12 +172,36 @@ library would have added but the profile does not name are dropped, because a
 browser sends what it sends and nothing more. Only what the standard requires
 last — PSK and ECH — survives regardless.
 
-Given no profile, nothing is impersonated and no GREASE is sent. Measure any of
-this yourself rather than trusting the table:
+Given no profile, nothing is impersonated and no GREASE is sent.
 
-```ts
-await new Session({ impersonate: 'chrome' }).fetch('https://tls.peet.ws/api/all');
+## Proving it
+
+Do not take the table above on trust; the library checks itself.
+
 ```
+pnpm verify
+```
+
+reads a real ClientHello out of the TLS module, computes JA4 and the Akamai
+string from those bytes, and compares them against what each profile claims —
+no network and no third party. `pnpm test` runs the same checks.
+
+```
+ok   chrome
+       ja4    t13d1516h2_8daaf6152771_d8a2da3f94cd
+       akamai 1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p
+```
+
+That catches a profile drifting, but not the runtime rewriting something
+underneath us. For that there is a second opinion, which makes real requests
+through a real Worker and asks a server what it saw:
+
+```
+pnpm verify:live     # then: curl localhost:8799
+```
+
+In code, `selfTest()` from `underfetch/workers` returns the same verdicts, so a
+Worker can check itself wherever it runs.
 
 ## Building the WebAssembly
 

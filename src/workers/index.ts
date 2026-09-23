@@ -10,6 +10,7 @@
 import { connect } from 'cloudflare:sockets';
 import { profiles, type Impersonation, type ProfileName } from '../impersonate';
 import { Session as PlainSession, type SessionDefaults, type SessionRequestInit } from '../session';
+import { verifyProfile, type Verdict } from '../verify';
 import { impersonating } from '../wasm-tls';
 import type { ByteSocket, Dial } from '../socket';
 
@@ -67,6 +68,22 @@ export function socketFetch(
   return new Session().fetch(input, init);
 }
 
+/**
+ * Checks every built-in profile against the fingerprints it claims, using a
+ * real ClientHello from the TLS module. No network, no third party.
+ */
+export async function selfTest(): Promise<Verdict[]> {
+  const out: Verdict[] = [];
+  for (const [name, profile] of Object.entries(profiles)) {
+    const session = impersonating(profile)('example.com');
+    out.push(await verifyProfile(name, profile, session.outgoing()));
+    session.close();
+  }
+  return out;
+}
+
+export { akamai, ja4, parseClientHello, verifyProfile } from '../verify';
+export type { ClientHello, Verdict } from '../verify';
 export { impersonating, wasmTls } from '../wasm-tls';
 export { profiles } from '../impersonate';
 export type { Impersonation, ProfileName } from '../impersonate';
