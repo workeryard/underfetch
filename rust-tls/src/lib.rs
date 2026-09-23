@@ -6,20 +6,109 @@
 //! it. This crate puts rustls behind a small state machine instead: JavaScript
 //! owns the socket and pumps bytes through, and nothing here does any I/O.
 
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::WebPkiServerVerifier;
 use rustls::fingerprint::Fingerprint;
-use rustls::{CipherSuite, ClientConfig, ClientConnection, RootCertStore, SignatureScheme};
-use rustls_pki_types::ServerName;
+use rustls::{
+    CipherSuite, ClientConfig, ClientConnection, DigitallySignedStruct, DistinguishedName, Error,
+    RootCertStore, SignatureScheme,
+};
+use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 use std::io::{Cursor, Read, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
 
 fn fail(context: &str, error: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(&format!("{context}: {error}"))
 }
 
+/// Splits `(length u32, DER)` records, the shape certificates cross the
+/// boundary in either way.
+fn certificates_from(blob: &[u8]) -> Vec<CertificateDer<'static>> {
+    let mut out = Vec::new();
+    let mut at = 0;
+    while at + 4 <= blob.len() {
+        let len = u32::from_be_bytes([blob[at], blob[at + 1], blob[at + 2], blob[at + 3]]) as usize;
+        at += 4;
+        if at + len > blob.len() {
+            break;
+        }
+        out.push(CertificateDer::from(blob[at..at + len].to_vec()));
+        at += len;
+    }
+    out
+}
+
+/// The web PKI's own verifier, given two things a browser has and it lacks:
+/// intermediates fetched from elsewhere, and a record of what the server sent.
+///
+/// A server that sends its leaf alone loads in a browser, because the browser
+/// fetches the missing issuer from the address the certificate names (its AIA
+/// extension). The caller does that fetching; this only widens the pool of
+/// intermediates a path may be built from. The path must still end at a
+/// trusted root and every other check still applies, so an extra certificate
+/// can complete a chain but never excuse a bad one.
+#[derive(Debug)]
+struct Completing {
+    inner: Arc<WebPkiServerVerifier>,
+    extra: Vec<CertificateDer<'static>>,
+    presented: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+impl ServerCertVerifier for Completing {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, Error> {
+        if let Ok(mut presented) = self.presented.lock() {
+            *presented = std::iter::once(end_entity)
+                .chain(intermediates)
+                .map(|cert| cert.to_vec())
+                .collect();
+        }
+        let mut pool: Vec<CertificateDer<'_>> = intermediates.to_vec();
+        pool.extend(self.extra.iter().cloned());
+        self.inner
+            .verify_server_cert(end_entity, &pool, server_name, ocsp_response, now)
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        self.inner
+            .verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, Error> {
+        self.inner
+            .verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.inner.supported_verify_schemes()
+    }
+
+    fn root_hint_subjects(&self) -> Option<&[DistinguishedName]> {
+        self.inner.root_hint_subjects()
+    }
+}
+
 #[wasm_bindgen]
 pub struct TlsClient {
     conn: ClientConnection,
+    presented: Arc<Mutex<Vec<Vec<u8>>>>,
 }
 
 #[wasm_bindgen]
@@ -42,12 +131,27 @@ impl TlsClient {
         grease_named_group: Option<bool>,
         extension_order: Option<Vec<u16>>,
         named_groups: Option<Vec<u16>>,
+        intermediates: Option<Vec<u8>>,
     ) -> Result<TlsClient, JsValue> {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
+        let inner = WebPkiServerVerifier::builder_with_provider(
+            Arc::new(roots),
+            Arc::new(rustls::crypto::ring::default_provider()),
+        )
+        .build()
+        .map_err(|error| fail("could not build the certificate verifier", error))?;
+        let presented = Arc::new(Mutex::new(Vec::new()));
+        let verifier = Completing {
+            inner,
+            extra: certificates_from(&intermediates.unwrap_or_default()),
+            presented: presented.clone(),
+        };
+
         let mut config = ClientConfig::builder()
-            .with_root_certificates(roots)
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier))
             .with_no_client_auth();
         if let Some(list) = alpn {
             config.alpn_protocols = list
@@ -90,7 +194,7 @@ impl TlsClient {
             .to_owned();
         let conn = ClientConnection::new(Arc::new(config), name)
             .map_err(|error| fail("could not start TLS", error))?;
-        Ok(TlsClient { conn })
+        Ok(TlsClient { conn, presented })
     }
 
     /// Hands over bytes that arrived from the network and returns how many were
@@ -152,6 +256,21 @@ impl TlsClient {
         self.conn
             .alpn_protocol()
             .map(|name| String::from_utf8_lossy(name).into_owned())
+    }
+
+    /// The certificates the server sent, leaf first, as `(length u32, DER)`
+    /// records. Filled in when the chain is checked, whether or not it passed,
+    /// so a caller can look for the issuer a failed chain was missing.
+    #[wasm_bindgen(js_name = presentedChain)]
+    pub fn presented_chain(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        if let Ok(presented) = self.presented.lock() {
+            for cert in presented.iter() {
+                out.extend_from_slice(&(cert.len() as u32).to_be_bytes());
+                out.extend_from_slice(cert);
+            }
+        }
+        out
     }
 
     /// Starts a clean shutdown; the caller still has to flush `outgoing`.

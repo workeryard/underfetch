@@ -8,6 +8,7 @@
 
 import { encodeExtensions, type Impersonation } from '../fingerprint/profiles';
 import { initSync, TlsClient } from '../../rust-tls/pkg/underfetch_tls';
+import { encodeCertificates } from './aia';
 import wasm from '../../rust-tls/pkg/underfetch_tls_bg.wasm';
 import type { TlsFactory } from './tunnel';
 
@@ -15,9 +16,27 @@ import type { TlsFactory } from './tunnel';
  * `initSync` returns immediately once the module is instantiated, so calling it
  * per connection costs nothing and saves us holding state of our own.
  */
-function client(hostname: string, alpn: string | undefined, as: Impersonation | undefined) {
+function client(
+  hostname: string,
+  alpn: string | undefined,
+  as: Impersonation | undefined,
+  intermediates: readonly Uint8Array[] | undefined,
+) {
   initSync({ module: wasm });
-  if (as === undefined) return new TlsClient(hostname, alpn ?? 'h2,http/1.1');
+  const extra = intermediates?.length ? encodeCertificates(intermediates) : undefined;
+  if (as === undefined) {
+    return new TlsClient(
+      hostname,
+      alpn ?? 'h2,http/1.1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      extra,
+    );
+  }
   return new TlsClient(
     hostname,
     alpn ?? as.alpn.join(','),
@@ -27,14 +46,16 @@ function client(hostname: string, alpn: string | undefined, as: Impersonation | 
     as.greaseNamedGroup,
     as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
     as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
+    extra,
   );
 }
 
 /** TLS that looks like whatever `as` describes, or like rustls when it is absent. */
 export const impersonating =
   (as: Impersonation | undefined): TlsFactory =>
-  (hostname, alpn) =>
-    client(hostname, alpn, as);
+  (hostname, alpn, intermediates) =>
+    client(hostname, alpn, as, intermediates);
 
 /** TLS with rustls' own ClientHello, which is safe and instantly recognisable. */
-export const wasmTls: TlsFactory = (hostname, alpn) => client(hostname, alpn, undefined);
+export const wasmTls: TlsFactory = (hostname, alpn, intermediates) =>
+  client(hostname, alpn, undefined, intermediates);

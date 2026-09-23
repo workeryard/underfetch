@@ -31,14 +31,25 @@ export async function plainHttpCases(bin: string, profile: WorkerSessionDefaults
 export async function tlsCases(profile: WorkerSessionDefaults['impersonate']) {
   const s = () => new Session({ timeoutMs: 15_000, retry: false, impersonate: profile });
   const out: Outcome[] = [];
-  for (const host of ['expired', 'self-signed', 'wrong.host', 'untrusted-root', 'revoked']) {
+  // A chain completed from AIA must not rescue any of these: each is wrong in
+  // a way no missing intermediate explains. notl.org serves a certificate
+  // for notl.com only, which Chrome rejects too.
+  for (const host of [
+    'expired.badssl.com',
+    'self-signed.badssl.com',
+    'wrong.host.badssl.com',
+    'untrusted-root.badssl.com',
+    'revoked.badssl.com',
+    'www.notl.org',
+  ]) {
     out.push(
-      await run('tls', `${host}.badssl.com refused`, async () => {
+      await run('tls', `${host} refused`, async () => {
+        const revoked = host.startsWith('revoked');
         try {
-          const r = await s().get(`https://${host}.badssl.com/`);
+          const r = await s().get(`https://${host}/`);
           return [
-            host === 'revoked',
-            `accepted, status ${r.status}${host === 'revoked' ? ' (no revocation checks, like most clients)' : ''}`,
+            revoked,
+            `accepted, status ${r.status}${revoked ? ' (no revocation checks, like most clients)' : ''}`,
           ];
         } catch (error) {
           return [true, String(error).slice(0, 120)];
@@ -53,6 +64,7 @@ export async function tlsCases(profile: WorkerSessionDefaults['impersonate']) {
     ['SHA-256 chain', 'https://sha256.badssl.com/'],
     // The server sends its leaf alone; browsers fetch the rest (AIA).
     ['incomplete chain, completed as a browser would', 'https://incomplete-chain.badssl.com/'],
+    ['leaf-only chain, one hop short (lincoln.ca)', 'https://www.lincoln.ca/'],
   ] as const) {
     out.push(
       await run('tls', label, async () => {

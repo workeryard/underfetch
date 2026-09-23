@@ -41,8 +41,9 @@ export class TlsClient {
      * @param {boolean | null} [grease_named_group]
      * @param {Uint16Array | null} [extension_order]
      * @param {Uint16Array | null} [named_groups]
+     * @param {Uint8Array | null} [intermediates]
      */
-    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups) {
+    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
@@ -59,7 +60,9 @@ export class TlsClient {
             var len5 = WASM_VECTOR_LEN;
             var ptr6 = isLikeNone(named_groups) ? 0 : passArray16ToWasm0(named_groups, wasm.__wbindgen_export2);
             var len6 = WASM_VECTOR_LEN;
-            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6);
+            var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export2);
+            var len7 = WASM_VECTOR_LEN;
+            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -110,6 +113,25 @@ export class TlsClient {
             if (r3) {
                 throw takeObject(r2);
             }
+            var v1 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * The certificates the server sent, leaf first, as `(length u32, DER)`
+     * records. Filled in when the chain is checked, whether or not it passed,
+     * so a caller can look for the issuer a failed chain was missing.
+     * @returns {Uint8Array}
+     */
+    presentedChain() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.tlsclient_presentedChain(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayU8FromWasm0(r0, r1).slice();
             wasm.__wbindgen_export4(r0, r1 * 1, 1);
             return v1;

@@ -201,6 +201,7 @@ different TLS stack means implementing six methods.
 | SOCKS5, with username/password auth              | yes                         |
 | HTTP `CONNECT`, with basic auth                  | yes                         |
 | TLS 1.2 and 1.3, certificates verified           | yes                         |
+| Short certificate chains completed from AIA      | yes, as browsers do         |
 | Streaming request and response bodies            | yes                         |
 | gzip and deflate, undone transparently           | yes                         |
 | Timeouts and `AbortSignal`                       | yes                         |

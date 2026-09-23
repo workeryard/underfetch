@@ -23,12 +23,25 @@ export interface TlsSession {
   /** Plaintext decrypted so far. */
   plaintext(): Uint8Array;
   readonly handshaking: boolean;
+  /**
+   * The certificates the server sent, as `(length u32, DER)` records, once
+   * they have been checked. Optional: only needed to complete a short chain.
+   */
+  presentedChain?(): Uint8Array;
   /** What ALPN settled on, once the handshake is done. */
   readonly protocol?: string | undefined;
   close(): void;
 }
 
-export type TlsFactory = (hostname: string, alpn?: string) => TlsSession;
+/**
+ * Builds a TLS client for one connection. `intermediates` are certificates
+ * fetched to complete a chain the server sent short; see `aia.ts`.
+ */
+export type TlsFactory = (
+  hostname: string,
+  alpn?: string,
+  intermediates?: readonly Uint8Array[],
+) => TlsSession;
 
 export class TlsError extends Error {
   override name = 'TlsError';
