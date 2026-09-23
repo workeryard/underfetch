@@ -113,7 +113,8 @@ export default {
         status: response.status,
         elapsedMs: Date.now() - started,
         headers: Object.fromEntries(response.headers),
-        body: body.slice(0, 700),
+        // `max` to read more of a page than a spot check needs.
+        body: body.slice(0, Math.min(Number(query.get('max') ?? 700), 2_000_000)),
       });
     }
 

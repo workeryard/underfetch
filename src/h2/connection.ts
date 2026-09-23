@@ -12,6 +12,7 @@
  */
 
 import { ByteReader, ByteWriter } from '../bytes';
+import { decompressed } from '../decompress';
 import { Hpack, type Header } from './hpack';
 import {
   decodeSettings,
@@ -207,7 +208,9 @@ function buildResponse(
     if (name.startsWith(':')) continue;
     out.append(name, value);
   }
-  return new Response(body, { status, headers: out });
+  // As on HTTP/1.1: the caller asked for a response, not for gzip.
+  const plain = body === null ? null : decompressed(body, out);
+  return new Response(plain, { status, headers: out });
 }
 
 /** DATA frames until END_STREAM, topping the flow-control window up as it goes. */

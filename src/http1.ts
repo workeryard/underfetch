@@ -8,6 +8,7 @@
  */
 
 import { ByteReader, ByteWriter } from './bytes';
+import { decompressed } from './decompress';
 
 const CRLF = '\r\n';
 const BODY_CHUNK = 16_384;
@@ -111,33 +112,6 @@ function countedBody(reader: ByteReader, length: number): ReadableStream<Uint8Ar
       controller.enqueue(chunk);
     },
   });
-}
-
-/** What `DecompressionStream` understands, by the name the header uses. */
-const FORMATS: Record<string, CompressionFormat> = {
-  gzip: 'gzip',
-  'x-gzip': 'gzip',
-  deflate: 'deflate',
-};
-
-/**
- * Undoes the encoding the server applied. Content-Length describes the
- * compressed bytes, so it stops being true here and is dropped with it.
- */
-function decompressed(
-  body: ReadableStream<Uint8Array>,
-  headers: Headers,
-): ReadableStream<Uint8Array> {
-  const encoding = headers.get('content-encoding')?.trim().toLowerCase();
-  const format = encoding === undefined ? undefined : FORMATS[encoding];
-  if (format === undefined) return body;
-  headers.delete('content-encoding');
-  headers.delete('content-length');
-  // `DecompressionStream` is typed as taking any BufferSource, which is wider
-  // than the Uint8Array stream we hand it and narrower than what it gives back.
-  return body.pipeThrough(
-    new DecompressionStream(format) as unknown as TransformStream<Uint8Array, Uint8Array>,
-  );
 }
 
 function responseBody(
