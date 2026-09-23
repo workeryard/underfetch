@@ -213,4 +213,65 @@ describe('http2', () => {
     expect(new TextDecoder().decode(payload.payload)).toBe('{"a":1}');
     expect(payload.flags & Flags.EndStream).toBe(Flags.EndStream);
   });
+
+  it('sends a body in frames and waits for the server to open its window', async () => {
+    const update = (stream: number, increment: number) => {
+      const payload = new Uint8Array(4);
+      new DataView(payload.buffer).setUint32(0, increment);
+      return encodeFrame(FrameType.WindowUpdate, 0, stream, payload);
+    };
+    // The default 65,535-byte window, then room for the rest on both levels.
+    const { socket, written } = socketOf([
+      SETTINGS,
+      update(0, 100_000),
+      update(1, 100_000),
+      OK,
+      data('{}'),
+    ]);
+    const body = new Uint8Array(150_000).fill(7);
+    await (
+      await http2Fetch(socket, new Request('https://example.com/', { method: 'POST', body }))
+    ).text();
+
+    const sent = framesIn(written).filter((f) => f.type === FrameType.Data);
+    expect(sent.every((f) => f.payload.length <= 16_384)).toBe(true);
+    expect(sent.reduce((n, f) => n + f.payload.length, 0)).toBe(150_000);
+    expect(sent.filter((f) => (f.flags & Flags.EndStream) !== 0)).toHaveLength(1);
+    expect(sent.at(-1)!.flags & Flags.EndStream).toBe(Flags.EndStream);
+  });
+
+  it('stops sending a body the server has already answered', async () => {
+    const refused = serverHeaders([[':status', '413']], Flags.EndStream);
+    const { socket, written } = socketOf([SETTINGS, refused]);
+    const body = new Uint8Array(200_000);
+    const response = await http2Fetch(
+      socket,
+      new Request('https://example.com/', { method: 'POST', body }),
+    );
+
+    expect(response.status).toBe(413);
+    const sent = framesIn(written).filter((f) => f.type === FrameType.Data);
+    expect(sent.reduce((n, f) => n + f.payload.length, 0)).toBe(65_535);
+  });
+
+  it('opens the window before a small one runs dry', async () => {
+    const small = {
+      ...DEFAULT_PROFILE,
+      settings: [[Setting.InitialWindowSize, 131_072]] as [number, number][],
+    };
+    const chunk = 'x'.repeat(16_384);
+    const { socket, written } = socketOf([
+      SETTINGS,
+      OK,
+      ...Array.from({ length: 5 }, () => data(chunk, false)),
+      data(''),
+    ]);
+    await (await http2Fetch(socket, new Request('https://example.com/'), small)).text();
+
+    // 80 KB read against a 128 KB window: past half, so it must be topped up.
+    const updates = framesIn(written).filter(
+      (f) => f.type === FrameType.WindowUpdate && f.stream === 1,
+    );
+    expect(updates.length).toBeGreaterThan(0);
+  });
 });
