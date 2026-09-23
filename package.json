@@ -1,0 +1,49 @@
+{
+  "name": "underfetch",
+  "version": "0.1.0",
+  "description": "HTTP over raw sockets for Cloudflare Workers: SOCKS5 and HTTP CONNECT proxies, TLS in WebAssembly, and a ClientHello you control.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "cloudflare-workers",
+    "socks5",
+    "proxy",
+    "tls",
+    "fetch",
+    "http-connect",
+    "fingerprint"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./workers": "./src/workers/index.ts",
+    "./wasm": "./src/wasm-tls.ts"
+  },
+  "files": [
+    "src",
+    "rust-tls/pkg",
+    "rust-tls/src",
+    "rust-tls/Cargo.toml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "build:wasm": "cd rust-tls && wasm-pack build --target web --out-dir pkg --out-name underfetch_tls"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.8",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^4.1.11"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22"
+  }
+}

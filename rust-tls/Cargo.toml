@@ -1,0 +1,36 @@
+[package]
+name = "underfetch-tls"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+rustls-pki-types = { version = "1", features = ["web", "std"] }
+webpki-roots = "1"
+getrandom = { version = "0.2", features = ["js"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# rustc emits bulk-memory and saturating-float instructions by default, which
+# the wasm-opt wasm-pack ships rejects unless told they are allowed. `-all` says
+# they are; every engine that runs a Worker has supported them for years. The
+# gain is small — opt-level "z" and LTO already did the work — but it is free.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O4", "-all"]
+
+# A fork, because browser impersonation needs a ClientHello rustls will not
+# emit on its own: GREASE values and a cipher list we advertise beyond what we
+# implement. Kept in-tree so the build needs nothing but this repo.
+[patch.crates-io]
+rustls = { path = "vendor/rustls/rustls" }
