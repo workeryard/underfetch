@@ -97,6 +97,9 @@ export class Session {
     // A request carrying session headers is a different request, so it is
     // rebuilt rather than mutated — `Request.headers` is not writable.
     const outgoing = new Request(request, { headers });
+    // A stream the caller handed us is sent as it arrives, never held in
+    // memory: which also means it cannot be sent twice, by a retry or a 307.
+    const streamed = init?.body instanceof ReadableStream;
 
     // `null` is how a caller says "not through the session's proxy"; undefined
     // means they said nothing, so the session's own setting stands.
@@ -111,6 +114,7 @@ export class Session {
         ...(proxy ? { proxy } : {}),
         ...(timeoutMs === undefined ? {} : { timeoutMs }),
         ...(init?.signal ? { signal: init.signal } : {}),
+        ...(streamed ? { streamBody: true } : {}),
       });
 
     // Cookies belong around a single hop, so a redirect both sends what it
@@ -130,12 +134,18 @@ export class Session {
     };
 
     const followed = (one: Request) =>
-      followRedirects(one, send, {
-        allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
-        maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
-      });
+      followRedirects(
+        one,
+        send,
+        {
+          allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
+          maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
+        },
+        !streamed,
+      );
 
-    return withRetry(outgoing, followed, init?.retry ?? this.#defaults.retry ?? {});
+    const retry = streamed ? false : (init?.retry ?? this.#defaults.retry ?? {});
+    return withRetry(outgoing, followed, retry);
   }
 
   get(url: string | URL, init?: SessionRequestInit): Promise<Response> {

@@ -39,7 +39,10 @@ export interface Http1Socket {
 /** A status that carries no body, whatever the headers claim. */
 const bodiless = (status: number) => status === 204 || status === 304 || status < 200;
 
-function requestHead(url: URL, method: string, headers: Headers, length: number | null): string {
+/** How the request body is framed: a known length, chunks, or no body. */
+type Framing = number | 'chunked' | null;
+
+function requestHead(url: URL, method: string, headers: Headers, framing: Framing): string {
   const path = `${url.pathname}${url.search}`;
   const lines = [`${method} ${path} HTTP/1.1`, `Host: ${url.host}`];
   for (const [name, value] of headers) {
@@ -47,7 +50,8 @@ function requestHead(url: URL, method: string, headers: Headers, length: number 
     if (name.toLowerCase() === 'host' || name.toLowerCase() === 'content-length') continue;
     lines.push(`${name}: ${value}`);
   }
-  if (length !== null) lines.push(`Content-Length: ${length}`);
+  if (framing === 'chunked') lines.push('Transfer-Encoding: chunked');
+  else if (framing !== null) lines.push(`Content-Length: ${framing}`);
   // No pooling yet, so the server is told to hang up after answering.
   lines.push('Connection: close');
   // Only what `DecompressionStream` can undo is asked for; brotli is not in it.
@@ -133,21 +137,56 @@ function responseBody(
   return reader.rest();
 }
 
+/** Writes a streamed body as RFC 9112 chunks, ending with the empty one. */
+async function writeChunked(writer: ByteWriter, body: ReadableStream<Uint8Array>): Promise<void> {
+  const encoder = new TextEncoder();
+  const source = body.getReader();
+  for (;;) {
+    const { value, done } = await source.read();
+    if (done) break;
+    // An empty chunk would read as the end of the body.
+    if (value.byteLength === 0) continue;
+    await writer.write(encoder.encode(`${value.byteLength.toString(16)}${CRLF}`));
+    await writer.write(value);
+    await writer.write(encoder.encode(CRLF));
+  }
+  await writer.write(encoder.encode(`0${CRLF}${CRLF}`));
+}
+
+export interface Http1Options {
+  /**
+   * Send the body as it arrives, in chunks, instead of reading it into memory
+   * first to state its length. For uploads too large to hold; a server that
+   * refuses chunked requests will answer 411.
+   */
+  streamBody?: boolean | undefined;
+}
+
 /**
  * Sends one request over `socket` and returns the answer, its body still
  * streaming. `socket` is spent afterwards, and closing it is the caller's job —
  * it owns whatever the tunnel is made of.
  */
-export async function http1Fetch(socket: Http1Socket, request: Request): Promise<Response> {
+export async function http1Fetch(
+  socket: Http1Socket,
+  request: Request,
+  { streamBody = false }: Http1Options = {},
+): Promise<Response> {
   const url = new URL(request.url);
-  // Buffering keeps the request a plain Content-Length one, which every server
-  // accepts; a chat request is small. Large uploads should not take this path.
-  const body = request.body === null ? null : new Uint8Array(await request.arrayBuffer());
-
   const writer = new ByteWriter(socket.writable);
-  const head = requestHead(url, request.method, request.headers, body?.byteLength ?? null);
-  await writer.write(new TextEncoder().encode(head));
-  if (body && body.byteLength > 0) await writer.write(body);
+
+  if (streamBody && request.body !== null) {
+    const head = requestHead(url, request.method, request.headers, 'chunked');
+    await writer.write(new TextEncoder().encode(head));
+    await writeChunked(writer, request.body);
+  } else {
+    // Buffering keeps the request a plain Content-Length one, which every
+    // server accepts, and costs nothing for a body that was in memory anyway.
+    const body = request.body === null ? null : new Uint8Array(await request.arrayBuffer());
+    const head = requestHead(url, request.method, request.headers, body?.byteLength ?? null);
+    await writer.write(new TextEncoder().encode(head));
+    if (body && body.byteLength > 0) await writer.write(body);
+  }
   writer.release();
 
   const reader = new ByteReader(socket.readable);

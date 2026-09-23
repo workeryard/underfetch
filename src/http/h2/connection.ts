@@ -15,7 +15,6 @@ import { ByteReader, ByteWriter } from '../../net/bytes';
 import { decompressed } from '../decompress';
 import { Hpack, type Header } from './hpack';
 import {
-  decodeSettings,
   encodeFrame,
   encodeSettings,
   encodeWindowUpdate,
@@ -29,6 +28,15 @@ import {
   Setting,
   unpad,
 } from './frames';
+import {
+  control,
+  DEFAULT_MAX_FRAME,
+  DEFAULT_WINDOW,
+  once,
+  STREAM,
+  upload,
+  type Allowance,
+} from './flow';
 
 export interface Http2Socket {
   readable: ReadableStream<Uint8Array>;
@@ -62,89 +70,6 @@ export const DEFAULT_PROFILE: Http2Profile = {
 };
 
 const PSEUDO = { m: ':method', a: ':authority', s: ':scheme', p: ':path' } as const;
-
-const STREAM = 1;
-const DEFAULT_MAX_FRAME = 16_384;
-/** Every window starts here until a SETTINGS frame or WINDOW_UPDATE says more. */
-const DEFAULT_WINDOW = 65_535;
-
-/**
- * What the server allows us to send: its frame size, and what is left of the
- * stream's and the connection's windows. A body sent past either window is a
- * FLOW_CONTROL_ERROR, which a strict server answers by resetting the stream.
- */
-interface Allowance {
-  maxFrame: number;
-  stream: number;
-  connection: number;
-}
-
-/**
- * Applies a frame that only adjusts the connection — SETTINGS, WINDOW_UPDATE,
- * PING — answering it where the protocol says to. Returns false for anything
- * that belongs to the response instead.
- */
-async function control(frame: Frame, allowance: Allowance, writer: ByteWriter): Promise<boolean> {
-  switch (frame.type) {
-    case FrameType.Settings: {
-      if ((frame.flags & Flags.Ack) !== 0) return true;
-      const settings = decodeSettings(frame.payload);
-      allowance.maxFrame = settings.get(Setting.MaxFrameSize) ?? allowance.maxFrame;
-      const window = settings.get(Setting.InitialWindowSize);
-      // A new initial size moves an open stream's window by the difference.
-      if (window !== undefined) allowance.stream += window - DEFAULT_WINDOW;
-      await writer.write(encodeFrame(FrameType.Settings, Flags.Ack, 0, new Uint8Array(0)));
-      return true;
-    }
-    case FrameType.WindowUpdate: {
-      if (frame.payload.length < 4) return true;
-      const view = new DataView(frame.payload.buffer, frame.payload.byteOffset);
-      const increment = view.getUint32(0) & 0x7fffffff;
-      if (frame.stream === 0) allowance.connection += increment;
-      else if (frame.stream === STREAM) allowance.stream += increment;
-      return true;
-    }
-    case FrameType.Ping:
-      if ((frame.flags & Flags.Ack) === 0) {
-        await writer.write(encodeFrame(FrameType.Ping, Flags.Ack, 0, frame.payload));
-      }
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
- * Sends the body in frames the server has room for, reading its window
- * updates while it waits. Anything else that arrives meanwhile is kept for
- * the response; if that is the answer itself, or a reset, sending stops —
- * the server has decided without the rest of the body.
- */
-async function upload(
-  body: Uint8Array,
-  reader: ByteReader,
-  writer: ByteWriter,
-  allowance: Allowance,
-  held: Frame[],
-): Promise<void> {
-  for (let offset = 0; offset < body.length;) {
-    const room = Math.min(allowance.maxFrame, allowance.stream, allowance.connection);
-    if (room > 0) {
-      const piece = body.subarray(offset, offset + room);
-      offset += piece.length;
-      const flags = offset === body.length ? Flags.EndStream : 0;
-      await writer.write(encodeFrame(FrameType.Data, flags, STREAM, piece));
-      allowance.stream -= piece.length;
-      allowance.connection -= piece.length;
-      continue;
-    }
-    const frame = await readFrame(reader, Math.max(allowance.maxFrame, DEFAULT_MAX_FRAME));
-    if (await control(frame, allowance, writer)) continue;
-    held.push(frame);
-    const final = [FrameType.Headers, FrameType.RstStream, FrameType.GoAway] as number[];
-    if (final.includes(frame.type)) return;
-  }
-}
 
 function pseudoHeaders(request: Request, url: URL, order: Http2Profile['pseudoHeaderOrder']) {
   const values = {
@@ -189,13 +114,33 @@ function withPriority(block: Uint8Array, priority: Http2Profile['priority']): Ui
  * Sends `request` and returns the answer with its body still streaming.
  * `socket` is spent afterwards; closing it is the caller's job.
  */
+export interface Http2Options {
+  /**
+   * Send the body as it arrives instead of reading it into memory first. For
+   * uploads too large to hold.
+   */
+  streamBody?: boolean | undefined;
+}
+
 export async function http2Fetch(
   socket: Http2Socket,
   request: Request,
   profile: Http2Profile = DEFAULT_PROFILE,
+  { streamBody = false }: Http2Options = {},
 ): Promise<Response> {
   const url = new URL(request.url);
-  const body = request.body === null ? null : new Uint8Array(await request.arrayBuffer());
+  // A body already in memory is sent whole, which also tells us up front
+  // whether HEADERS ends the stream; a streamed one is read as it goes.
+  const buffered =
+    streamBody || request.body === null ? null : new Uint8Array(await request.arrayBuffer());
+  const body: ReadableStream<Uint8Array> | null =
+    request.body === null
+      ? null
+      : streamBody
+        ? request.body
+        : buffered!.byteLength === 0
+          ? null
+          : once(buffered!);
 
   const writer = new ByteWriter(socket.writable);
   const reader = new ByteReader(socket.readable);
@@ -210,7 +155,7 @@ export async function http2Fetch(
   }
 
   const block = withPriority(hpack.encode(requestHeaders(request, url, profile)), profile.priority);
-  const endStream = body === null || body.byteLength === 0 ? Flags.EndStream : 0;
+  const endStream = body === null ? Flags.EndStream : 0;
   const flags = Flags.EndHeaders | endStream | (profile.priority ? Flags.Priority : 0);
   await writer.write(encodeFrame(FrameType.Headers, flags, STREAM, block));
   const allowance: Allowance = {
@@ -219,9 +164,7 @@ export async function http2Fetch(
     connection: DEFAULT_WINDOW,
   };
   const held: Frame[] = [];
-  if (body !== null && body.byteLength > 0) {
-    await upload(body, reader, writer, allowance, held);
-  }
+  if (body !== null) await upload(body, reader, writer, allowance, held);
 
   return await readResponse(reader, writer, hpack, allowance, held, receiveWindows(profile));
 }

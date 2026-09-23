@@ -139,9 +139,20 @@ object it leaves the body **streaming** — server-sent events arrive event by
 event, and nothing waits for the whole answer. After redirects, `response.url`
 is where the chain ended.
 
-A redirect that changes host drops `authorization` and `cookie`. A 307 or 308
-repeats the request body, so a body is buffered before the first hop; if that
-matters, turn redirects off.
+A redirect that changes host drops `authorization` and `cookie`.
+
+A body given as a `ReadableStream` is **uploaded as it arrives** and never held
+whole in memory — chunked on HTTP/1.1, frame by frame on HTTP/2 — so a Worker
+can pass on an upload larger than it could hold:
+
+```ts
+await session.post(url, { body: request.body, headers: { 'content-type': type } });
+```
+
+The price is that it can be sent only once. A 307 or 308, which would repeat
+it, comes back to you rather than being followed, and it is never retried.
+Any other body — a string, `json`, `form`, bytes — is already in memory, goes
+out with a `Content-Length`, and is repeated freely.
 
 ### Cookies
 

@@ -87,5 +87,8 @@ export function buildRequest(
     method,
     headers,
     ...(body === undefined ? {} : { body }),
+    // The Fetch standard asks for this with a stream body, and Node enforces
+    // it; saying it here spares every caller.
+    ...(body instanceof ReadableStream ? { duplex: 'half' } : {}),
   });
 }

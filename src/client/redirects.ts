@@ -25,17 +25,31 @@ export async function followRedirects(
   request: Request,
   send: (request: Request) => Promise<Response>,
   { allowRedirects = true, maxRedirects = 20 }: RedirectOptions = {},
+  /**
+   * Whether the body may be read into memory to send again. A streamed
+   * upload may not: a 307 or 308, which would repeat it, is handed back to
+   * the caller rather than followed.
+   */
+  replayable = true,
 ): Promise<Response> {
   // A 307 or 308 repeats the body, and a stream can only be sent once, so it
   // is read into memory before the first hop rather than lost on the second.
   const body =
-    allowRedirects && request.body !== null ? new Uint8Array(await request.arrayBuffer()) : null;
+    allowRedirects && replayable && request.body !== null
+      ? new Uint8Array(await request.arrayBuffer())
+      : null;
   let current = body === null ? request : new Request(request, { body: body as BodyInit });
 
   for (let hop = 0; ; hop++) {
     const response = await send(current);
     const location = response.headers.get('location');
-    if (!allowRedirects || location === null || !REDIRECTS.includes(response.status)) {
+    const repeatsBody = response.status === 307 || response.status === 308;
+    if (
+      !allowRedirects ||
+      location === null ||
+      !REDIRECTS.includes(response.status) ||
+      (!replayable && current.body !== null && repeatsBody)
+    ) {
       // The final URL is what the caller followed to, which a constructed
       // Response otherwise reports as empty.
       Object.defineProperty(response, 'url', { value: current.url, configurable: true });

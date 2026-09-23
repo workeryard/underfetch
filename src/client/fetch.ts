@@ -35,6 +35,12 @@ export interface ProxyFetchOptions {
    * certificate gives, as a browser does. Default: true.
    */
   completeChains?: boolean | undefined;
+  /**
+   * Send the request body as it arrives instead of reading it into memory
+   * first: chunked on HTTP/1.1, frame by frame on HTTP/2. For uploads too
+   * large to hold. Default: false.
+   */
+  streamBody?: boolean | undefined;
 }
 
 const defaultPort = (url: URL) => (url.protocol === 'http:' ? 80 : 443);
@@ -176,7 +182,7 @@ async function completeChain(
 async function attempt(
   request: Request,
   url: URL,
-  { dial, proxy, http2 }: ProxyFetchOptions,
+  { dial, proxy, http2, streamBody }: ProxyFetchOptions,
   tls: TlsFactory,
   signal: AbortSignal,
 ): Promise<Response> {
@@ -193,13 +199,13 @@ async function attempt(
       const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
       // Plain http needs no session; https gets one that checks the
       // certificate against the target's name, which the proxy never sees.
-      if (url.protocol === 'http:') return http1Fetch(tunnel, request);
+      if (url.protocol === 'http:') return http1Fetch(tunnel, request, { streamBody });
 
       const carrier = await tlsTunnel(tunnel, tls(url.hostname));
       // ALPN, not guesswork: speaking the wrong one hangs the connection.
       return carrier.protocol === 'h2'
-        ? http2Fetch(carrier, request, http2)
-        : http1Fetch(carrier, request);
+        ? http2Fetch(carrier, request, http2, { streamBody })
+        : http1Fetch(carrier, request, { streamBody });
     };
 
     const response = await until(signal, setup());

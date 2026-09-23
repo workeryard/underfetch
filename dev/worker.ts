@@ -14,6 +14,7 @@ import { Session } from '../src/workers/index';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
 import { sessionCases } from './cases/session';
+import { uploadCases } from './cases/uploads';
 import { wafCases } from './cases/waf';
 import type { Outcome } from './cases/probe';
 
@@ -112,6 +113,7 @@ export default {
         http: () => cases(bin, as),
         plain: () => plainHttpCases(bin, as),
         session: () => sessionCases(as),
+        uploads: () => uploadCases(bin, as),
         tls: () => tlsCases(as),
         sites: () => siteCases(as),
         websocket: () => websocketCases(as),
