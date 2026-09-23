@@ -38,6 +38,15 @@ export const dial: Dial = (hostname, port) => {
  * const response = await session.fetch('https://api.example.com/v1/models');
  * ```
  */
+/** The profile's headers, with anything the session set taking precedence. */
+function browserHeaders(as: Impersonation, own: HeadersInit | undefined): Headers {
+  const headers = new Headers(as.headers as [string, string][]);
+  if (own !== undefined) {
+    for (const [name, value] of new Headers(own)) headers.set(name, value);
+  }
+  return headers;
+}
+
 export interface WorkerSessionDefaults extends SessionDefaults {
   /**
    * Whose ClientHello to send: a name from `profiles`, a profile of your own,
@@ -53,9 +62,10 @@ export class Session extends PlainSession {
       dial,
       tls: impersonating(as),
       ...(as ? { http2: as.http2 } : {}),
-      // A browser's ALPN travels with its fingerprint, so a profile sets the
-      // headers' protocol too unless the caller said otherwise.
       ...defaults,
+      // A browser's headers travel with its handshake. The session's own win
+      // over the profile's, and a request's win over both.
+      ...(as ? { headers: browserHeaders(as, defaults.headers) } : {}),
     });
   }
 }

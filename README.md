@@ -236,6 +236,22 @@ The three are deliberately unalike, which is the point: Chrome GREASEs and
 shuffles its extensions, Firefox does neither, Safari GREASEs but keeps a fixed
 order. Anything between those is expressible.
 
+A profile also carries the browser's **request headers in the browser's
+order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the rest —
+because a handshake that matches Chrome while the headers say "not a browser"
+fools nobody. Headers a session or a request sets win over the profile's.
+
+Two honest deviations. `accept-encoding` is ours (`gzip, deflate`) rather than
+the browser's `gzip, deflate, br, zstd`: `DecompressionStream` has no brotli
+and no zstd, and advertising what cannot be decoded is how a handshake breaks.
+And the `sec-ch-ua` brand list rotates between Chrome releases, so check it
+against a real browser if it matters to you.
+
+The numbers come from real browsers rather than from memory:
+[utls](https://github.com/refraction-networking/utls)'s `u_parrots.go` for the
+ClientHello, and [th1](https://github.com/lexiforest/th1)'s `signatures/` for
+headers and HTTP/2 settings.
+
 Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
 string is right in every other field.
 

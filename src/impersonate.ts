@@ -37,6 +37,16 @@ export interface Impersonation {
   /** Puts a GREASE value at the head of the supported groups. */
   greaseNamedGroup: boolean;
   /**
+   * What the browser sends with every request, in its order. A handshake that
+   * matches Chrome while the headers say "not a browser" fools nobody, and
+   * headers are the first thing most checks read.
+   *
+   * `accept-encoding` is deliberately ours rather than the browser's: a real
+   * one offers brotli and zstd, and offering what we cannot decode is exactly
+   * the mistake that broke certificate compression.
+   */
+  headers: readonly (readonly [string, string])[];
+  /**
    * The exact order to write extensions in. Left out, they are shuffled, which
    * is what Chrome does; Firefox and Safari send a fixed order.
    */
@@ -108,6 +118,26 @@ const alps = (...protocols: string[]): Uint8Array => {
 };
 
 /**
+ * What every profile can decode, whatever the real browser offers.
+ * `DecompressionStream` has no brotli and no zstd.
+ */
+const ACCEPT_ENCODING = ['accept-encoding', 'gzip, deflate'] as const;
+
+/**
+ * The browser versions these profiles claim. Keep them in step with the TLS
+ * half: a Chrome 133 handshake under a Chrome 120 user-agent is a louder
+ * signal than either would be on its own.
+ *
+ * The header sets below are captured requests from `lexiforest/th1`'s
+ * `signatures/`, which is also where their order comes from — order is part of
+ * the fingerprint. One caveat: the captures stop at Chrome 124, so the version
+ * here is substituted into that shape. The GREASE entry in `sec-ch-ua`
+ * ("Not-A.Brand" and friends) rotates between releases, so check it against a
+ * real browser before relying on it.
+ */
+const CHROME_VERSION = '133';
+
+/**
  * Chrome 133. Verified: its JA4 cipher and extension hashes come out as
  * `8daaf6152771` and `d8a2da3f94cd`, which `test/fingerprint.test.ts` pins.
  */
@@ -151,6 +181,30 @@ export const chrome: Impersonation = {
     [0x44cd, alps('h2')], // application_settings
     [0xfe0d, greaseEch(176)], // encrypted_client_hello
     [GREASE[1], bytes(0x00)],
+  ],
+  headers: [
+    [
+      'sec-ch-ua',
+      `"Chromium";v="${CHROME_VERSION}", "Google Chrome";v="${CHROME_VERSION}", "Not-A.Brand";v="99"`,
+    ],
+    ['sec-ch-ua-mobile', '?0'],
+    ['sec-ch-ua-platform', '"macOS"'],
+    ['upgrade-insecure-requests', '1'],
+    [
+      'user-agent',
+      `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`,
+    ],
+    [
+      'accept',
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    ],
+    ['sec-fetch-site', 'none'],
+    ['sec-fetch-mode', 'navigate'],
+    ['sec-fetch-user', '?1'],
+    ['sec-fetch-dest', 'document'],
+    ACCEPT_ENCODING,
+    ['accept-language', 'en-US,en;q=0.9'],
+    ['priority', 'u=0, i'],
   ],
   expected: {
     ja4: 't13d1516h2_8daaf6152771_d8a2da3f94cd',
@@ -204,6 +258,21 @@ export const firefox: Impersonation = {
     [0x0012, bytes()], // signed_certificate_timestamp
     [0x001c, bytes(0x40, 0x01)], // record_size_limit
     [0xfe0d, greaseEch(223)], // encrypted_client_hello
+  ],
+  headers: [
+    ['user-agent', 'Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0'],
+    [
+      'accept',
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    ],
+    ['accept-language', 'en-US,en;q=0.5'],
+    ACCEPT_ENCODING,
+    ['upgrade-insecure-requests', '1'],
+    ['sec-fetch-dest', 'document'],
+    ['sec-fetch-mode', 'navigate'],
+    ['sec-fetch-site', 'none'],
+    ['sec-fetch-user', '?1'],
+    ['te', 'trailers'],
   ],
   expected: {
     ja4: 't13d1715h2_5b57614c22b0_a54fffd0eb61',
@@ -278,6 +347,18 @@ export const safari: Impersonation = {
     [0xff01, bytes(0x00)], // renegotiation_info
     [0x0012, bytes()], // signed_certificate_timestamp
     [GREASE[1], bytes(0x00)],
+  ],
+  headers: [
+    ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
+    ['sec-fetch-site', 'none'],
+    ACCEPT_ENCODING,
+    ['sec-fetch-mode', 'navigate'],
+    [
+      'user-agent',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15',
+    ],
+    ['accept-language', 'en-US,en;q=0.9'],
+    ['sec-fetch-dest', 'document'],
   ],
   expected: {
     ja4: 't13d2013h2_a09f3c656075_7f0f34a4126d',
