@@ -125,13 +125,15 @@ export async function selfTest(): Promise<Verdict[]> {
   return out;
 }
 
-export { akamai, ja4, parseClientHello, verifyProfile } from '../fingerprint/verify';
+export { akamai, ja3, ja4, parseClientHello, verifyProfile } from '../fingerprint/verify';
 export type { ClientHello, Verdict } from '../fingerprint/verify';
 export { impersonating, wasmTls } from '../tls/wasm';
 export { CookieJar } from '../client/cookies';
 export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
 export { profiles } from '../fingerprint/profiles';
+export { FingerprintError, fromFingerprints } from '../fingerprint/custom';
+export type { FromFingerprints } from '../fingerprint/custom';
 export type { Impersonation, ProfileName } from '../fingerprint/profiles';
 export type { SessionDefaults, SessionRequestInit } from '../client/session';
 export type { HttpProxy, Proxy, Socks5Proxy } from '../net/socket';

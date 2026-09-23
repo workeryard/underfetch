@@ -302,6 +302,29 @@ of them has been published.
 Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
 string is right in every other field.
 
+A browser that is not built in can be taken from the two strings
+[tls.peet.ws/api/all](https://tls.peet.ws/api/all) shows when opened in it —
+`ja3` and `akamai_fingerprint`. Neither string carries the signature
+algorithms, the headers or the bodies of extensions such as ALPS, so those come
+from a built-in profile of the same family:
+
+```ts
+import { fromFingerprints, profiles, Session } from 'underfetch/workers';
+
+const edge = await fromFingerprints(
+  { ja3: '771,4865-4866-…,0', akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p' },
+  profiles.chrome,
+);
+new Session({ impersonate: edge });
+```
+
+The JA3 then goes out exactly as given, less any post-quantum group (the same
+reason as above), and `expected.ja3` says what that is. Anything the strings
+ask for that cannot be sent — an extension the TLS module does not know, or
+Firefox's old PRIORITY frames — is refused with a `FingerprintError` naming
+it, rather than dropped. JA3 records one extension order; Chrome shuffles on
+every connection, which `shuffle: true` does too.
+
 A profile of your own is the same shape, written by hand:
 
 ```ts

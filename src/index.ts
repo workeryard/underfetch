@@ -39,6 +39,15 @@ export type { ByteSocket, Dial, HttpProxy, Proxy, Socks5Proxy } from './net/sock
 export { Socks5Error, socks5Connect } from './net/socks5';
 
 export { encodeExtensions, GREASE, profiles } from './fingerprint/profiles';
+export { FingerprintError, fromFingerprints } from './fingerprint/custom';
+export type { FromFingerprints } from './fingerprint/custom';
 export type { Extension, Impersonation, ProfileName } from './fingerprint/profiles';
-export { akamai, ja4, parseClientHello, verifyProfile, VerifyError } from './fingerprint/verify';
+export {
+  akamai,
+  ja3,
+  ja4,
+  parseClientHello,
+  verifyProfile,
+  VerifyError,
+} from './fingerprint/verify';
 export type { ClientHello, Verdict } from './fingerprint/verify';

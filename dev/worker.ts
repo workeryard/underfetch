@@ -9,6 +9,7 @@
  */
 
 import { profiles, type ProfileName } from '../src/fingerprint/profiles';
+import { fromFingerprints } from '../src/fingerprint/custom';
 import { akamai } from '../src/fingerprint/verify';
 import { Session } from '../src/workers/index';
 import { cases } from './cases/http';
@@ -103,6 +104,28 @@ export default {
       const url = query.get('url') ?? 'https://example.com/';
       const rounds = Math.min(Number(query.get('n') ?? 5), 20);
       return Response.json({ url, rounds, results: await benchmark(url, rounds) });
+    }
+
+    if (new URL(request.url).pathname === '/custom') {
+      // A profile from a JA3 and an Akamai string, checked against what a
+      // server actually saw. The strings are tls.peet.ws's own field names.
+      const base = profiles[(query.get('base') ?? 'chrome') as ProfileName];
+      const as = await fromFingerprints(
+        { ja3: query.get('ja3') ?? '', akamai: query.get('akamai') ?? '' },
+        base,
+      );
+      const seen = (await (
+        await new Session({ impersonate: as, timeoutMs: 20_000 }).fetch(CHECKER)
+      ).json()) as Seen & { tls?: { ja3?: string } };
+      return Response.json({
+        ja3: { want: as.expected.ja3, seen: seen.tls?.ja3, ok: as.expected.ja3 === seen.tls?.ja3 },
+        ja4: { want: as.expected.ja4, seen: seen.tls?.ja4, ok: as.expected.ja4 === seen.tls?.ja4 },
+        akamai: {
+          want: as.expected.akamai,
+          seen: seen.http2?.akamai_fingerprint,
+          ok: as.expected.akamai === seen.http2?.akamai_fingerprint,
+        },
+      });
     }
 
     if (new URL(request.url).pathname === '/cases') {

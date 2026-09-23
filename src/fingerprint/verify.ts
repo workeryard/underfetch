@@ -22,6 +22,10 @@ export interface ClientHello {
   alpn: string[];
   /** True when a server name was sent, which JA4 records as `d` rather than `i`. */
   hasServerName: boolean;
+  /** Supported groups, which JA3 reads and JA4 does not. */
+  groups?: number[] | undefined;
+  /** EC point formats, the last field of JA3. */
+  pointFormats?: number[] | undefined;
 }
 
 const isGrease = (value: number) => (GREASE as readonly number[]).includes(value);
@@ -54,6 +58,8 @@ export function parseClientHello(record: Uint8Array): ClientHello {
   let signatureSchemes: number[] = [];
   const alpn: string[] = [];
   let hasServerName = false;
+  const groups: number[] = [];
+  const pointFormats: number[] = [];
 
   while (at + 4 <= end) {
     const type = view.getUint16(at);
@@ -73,10 +79,15 @@ export function parseClientHello(record: Uint8Array): ClientHello {
       }
     } else if (type === 0x0000) {
       hasServerName = true;
+    } else if (type === 0x000a) {
+      const listBytes = view.getUint16(body);
+      for (let i = 0; i < listBytes; i += 2) groups.push(view.getUint16(body + 2 + i));
+    } else if (type === 0x000b) {
+      for (let i = 0; i < record[body]!; i++) pointFormats.push(record[body + 1 + i]!);
     }
     at = body + length;
   }
-  return { ciphers, extensions, signatureSchemes, alpn, hasServerName };
+  return { ciphers, extensions, signatureSchemes, alpn, hasServerName, groups, pointFormats };
 }
 
 const sha256 = async (text: string) => {
@@ -116,6 +127,23 @@ export async function ja4(hello: ClientHello, transport: 't' | 'q' = 't'): Promi
 }
 
 /**
+ * JA3, as Salesforce defines it: the TLS version, then ciphers, extensions,
+ * groups and point formats, each in the order sent, GREASE left out. Unlike
+ * JA4 it keeps extension order, so it tells shuffled Chrome hellos apart.
+ */
+export function ja3(hello: ClientHello): string {
+  const list = (values: readonly number[] | undefined) =>
+    (values ?? []).filter((v) => !isGrease(v)).join('-');
+  return [
+    771,
+    list(hello.ciphers),
+    list(hello.extensions),
+    list(hello.groups),
+    (hello.pointFormats ?? []).join('-'),
+  ].join(',');
+}
+
+/**
  * The Akamai HTTP/2 fingerprint: settings, window update, priority frames and
  * pseudo-header order. Its usual companion hash is MD5, which WebCrypto does
  * not offer and which is no more informative than the string itself.
@@ -130,6 +158,8 @@ export interface Verdict {
   name: string;
   ja4: { got: string; want: string; ok: boolean };
   akamai: { got: string; want: string; ok: boolean };
+  /** Present when the profile states a JA3 to match. */
+  ja3?: { got: string; want: string; ok: boolean } | undefined;
   ok: boolean;
 }
 
@@ -140,13 +170,22 @@ export interface Verdict {
  */
 export async function verifyProfile(
   name: string,
-  profile: { http2: Http2Profile; expected: { ja4: string; akamai: string } },
+  profile: {
+    http2: Http2Profile;
+    expected: { ja4: string; akamai: string; ja3?: string | undefined };
+  },
   hello: Uint8Array,
 ): Promise<Verdict> {
+  const parsed = parseClientHello(hello);
   const got = {
-    ja4: await ja4(parseClientHello(hello)),
+    ja4: await ja4(parsed),
     akamai: akamai(profile.http2),
   };
+  const wantJa3 = profile.expected.ja3;
+  const ja3Check =
+    wantJa3 === undefined
+      ? undefined
+      : { got: ja3(parsed), want: wantJa3, ok: ja3(parsed) === wantJa3 };
   const checked = {
     ja4: { got: got.ja4, want: profile.expected.ja4, ok: got.ja4 === profile.expected.ja4 },
     akamai: {
@@ -155,5 +194,10 @@ export async function verifyProfile(
       ok: got.akamai === profile.expected.akamai,
     },
   };
-  return { name, ...checked, ok: checked.ja4.ok && checked.akamai.ok };
+  return {
+    name,
+    ...checked,
+    ...(ja3Check ? { ja3: ja3Check } : {}),
+    ok: checked.ja4.ok && checked.akamai.ok && (ja3Check?.ok ?? true),
+  };
 }
