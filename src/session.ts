@@ -7,6 +7,7 @@
  */
 
 import { proxyFetch } from './index';
+import type { Http2Profile } from './h2/connection';
 import type { Dial, Proxy } from './socket';
 import type { TlsFactory } from './tls';
 
@@ -24,6 +25,8 @@ export interface SessionOptions extends SessionDefaults {
   dial: Dial;
   /** Builds a TLS client for one connection. */
   tls: TlsFactory;
+  /** How to open an HTTP/2 connection, when ALPN settles on one. */
+  http2?: Http2Profile | undefined;
 }
 
 export interface SessionRequestInit extends RequestInit {
@@ -45,11 +48,13 @@ function merged(defaults: HeadersInit | undefined, request: Request): Headers {
 export class Session {
   readonly #dial: Dial;
   readonly #tls: TlsFactory;
+  readonly #http2: Http2Profile | undefined;
   readonly #defaults: SessionDefaults;
 
-  constructor({ dial, tls, ...defaults }: SessionOptions) {
+  constructor({ dial, tls, http2, ...defaults }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
+    this.#http2 = http2;
     this.#defaults = defaults;
   }
 
@@ -73,6 +78,7 @@ export class Session {
     return proxyFetch(outgoing, {
       dial: this.#dial,
       tls: this.#tls,
+      ...(this.#http2 ? { http2: this.#http2 } : {}),
       ...(proxy ? { proxy } : {}),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
       ...(init?.signal ? { signal: init.signal } : {}),

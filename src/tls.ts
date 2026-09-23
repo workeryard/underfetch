@@ -23,6 +23,8 @@ export interface TlsSession {
   /** Plaintext decrypted so far. */
   plaintext(): Uint8Array;
   readonly handshaking: boolean;
+  /** What ALPN settled on, once the handshake is done. */
+  readonly protocol?: string | undefined;
   close(): void;
 }
 
@@ -50,7 +52,12 @@ function receiveAll(session: TlsSession, chunk: Uint8Array): void {
 export async function tlsTunnel(
   socket: ByteSocket,
   session: TlsSession,
-): Promise<{ readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> }> {
+): Promise<{
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  /** What ALPN settled on: `h2`, `http/1.1`, or nothing if it went unasked. */
+  protocol: string | undefined;
+}> {
   const reader = socket.readable.getReader();
   const writer = socket.writable.getWriter();
 
@@ -107,5 +114,5 @@ export async function tlsTunnel(
     },
   });
 
-  return { readable, writable };
+  return { readable, writable, protocol: session.protocol };
 }

@@ -51,6 +51,7 @@ export class Session extends PlainSession {
     super({
       dial,
       tls: impersonating(as),
+      ...(as ? { http2: as.http2 } : {}),
       // A browser's ALPN travels with its fingerprint, so a profile sets the
       // headers' protocol too unless the caller said otherwise.
       ...defaults,

@@ -17,7 +17,7 @@ import type { TlsFactory } from './tls';
  */
 function client(hostname: string, alpn: string | undefined, as: Impersonation | undefined) {
   initSync({ module: wasm });
-  if (as === undefined) return new TlsClient(hostname, alpn);
+  if (as === undefined) return new TlsClient(hostname, alpn ?? 'h2,http/1.1');
   return new TlsClient(
     hostname,
     alpn ?? as.alpn.join(','),

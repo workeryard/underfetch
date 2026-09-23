@@ -9,6 +9,7 @@
  */
 
 import { deadline, until } from './abort';
+import { http2Fetch, type Http2Profile } from './h2/connection';
 import { http1Fetch } from './http1';
 import { tlsTunnel, type TlsFactory } from './tls';
 import { tunnelThrough } from './tunnel';
@@ -21,6 +22,9 @@ export { Http1Error, http1Fetch } from './http1';
 export { Socks5Error, socks5Connect } from './socks5';
 export { TlsError, tlsTunnel } from './tls';
 export { tunnelThrough } from './tunnel';
+export { DEFAULT_PROFILE, http2Fetch } from './h2/connection';
+export { Http2Error } from './h2/frames';
+export type { Http2Profile } from './h2/connection';
 export { encodeExtensions, GREASE, profiles } from './impersonate';
 export { Session } from './session';
 export type { Extension, Impersonation, ProfileName } from './impersonate';
@@ -39,6 +43,8 @@ export interface ProxyFetchOptions {
   timeoutMs?: number | undefined;
   /** Cancels the request. Given here, it replaces the request's own signal. */
   signal?: AbortSignal | undefined;
+  /** How to open an HTTP/2 connection, when ALPN settles on one. */
+  http2?: Http2Profile | undefined;
 }
 
 const defaultPort = (url: URL) => (url.protocol === 'http:' ? 80 : 443);
@@ -84,7 +90,7 @@ function closingWhenDone(
  */
 export async function proxyFetch(
   request: Request,
-  { dial, tls, proxy, timeoutMs, signal }: ProxyFetchOptions,
+  { dial, tls, proxy, timeoutMs, signal, http2 }: ProxyFetchOptions,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
@@ -105,9 +111,13 @@ export async function proxyFetch(
       const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
       // Plain http needs no session; https gets one that checks the
       // certificate against the target's name, which the proxy never sees.
-      const carrier =
-        url.protocol === 'http:' ? tunnel : await tlsTunnel(tunnel, tls(url.hostname, 'http/1.1'));
-      return http1Fetch(carrier, request);
+      if (url.protocol === 'http:') return http1Fetch(tunnel, request);
+
+      const carrier = await tlsTunnel(tunnel, tls(url.hostname));
+      // ALPN, not guesswork: speaking the wrong one hangs the connection.
+      return carrier.protocol === 'h2'
+        ? http2Fetch(carrier, request, http2)
+        : http1Fetch(carrier, request);
     };
 
     const response = await until(limit.signal, setup());

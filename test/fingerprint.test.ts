@@ -77,7 +77,7 @@ function helloFor(as: Impersonation, alpn = 'http/1.1'): Hello {
   return parse(session.outgoing());
 }
 
-const hello = (alpn = 'http/1.1') => helloFor(chrome, alpn);
+const hello = (alpn = 'h2,http/1.1') => helloFor(chrome, alpn);
 
 /** JA4's two hashes, from a ClientHello rather than from a claim. */
 function ja4(seen: Hello): { ciphers: string; extensions: string; counts: string } {

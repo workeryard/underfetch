@@ -10,6 +10,9 @@
  * each browser actually sends.
  */
 
+import type { Http2Profile } from './h2/connection';
+import { Setting } from './h2/frames';
+
 /** The sixteen reserved values of RFC 8701, which servers must ignore. */
 export const GREASE = [
   0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba,
@@ -19,8 +22,14 @@ export const GREASE = [
 export type Extension = readonly [type: number, body: Uint8Array];
 
 export interface Impersonation {
-  /** ALPN, in order. `h2` belongs here only once HTTP/2 is real. */
+  /** ALPN, in order. */
   alpn: readonly string[];
+  /**
+   * The HTTP/2 settings, window update and pseudo-header order. A browser is
+   * as recognisable by its SETTINGS frame as by its ClientHello — this is what
+   * an Akamai fingerprint reads.
+   */
+  http2: Http2Profile;
   /** Offered verbatim, GREASE included; half of a browser's list is bluff. */
   ciphers: readonly number[];
   /** Offered verbatim, in this order. */
@@ -94,9 +103,18 @@ const alps = (...protocols: string[]): Uint8Array => {
  * `8daaf6152771` and `d8a2da3f94cd`, which `test/fingerprint.test.ts` pins.
  */
 export const chrome: Impersonation = {
-  // `h2` is what Chrome sends. Until HTTP/2 exists here, offering it would
-  // fail the first handshake a server accepted it on.
-  alpn: ['http/1.1'],
+  alpn: ['h2', 'http/1.1'],
+  // Akamai: 1:65536,2:0,4:6291456,6:262144|15663105|0|m,a,s,p
+  http2: {
+    settings: [
+      [Setting.HeaderTableSize, 65536],
+      [Setting.EnablePush, 0],
+      [Setting.InitialWindowSize, 6291456],
+      [Setting.MaxHeaderListSize, 262144],
+    ],
+    windowUpdate: 15663105,
+    pseudoHeaderOrder: ['m', 'a', 's', 'p'],
+  },
   ciphers: [
     GREASE[0],
     0x1301,
@@ -143,7 +161,19 @@ const schemeList = (...schemes: number[]): Uint8Array => {
  * than shuffled.
  */
 export const firefox: Impersonation = {
-  alpn: ['http/1.1'],
+  alpn: ['h2', 'http/1.1'],
+  // Akamai: 1:65536,2:0,4:131072,5:16384|12517377|...|m,p,a,s
+  // The priority frames Firefox also sends are not reproduced.
+  http2: {
+    settings: [
+      [Setting.HeaderTableSize, 65536],
+      [Setting.EnablePush, 0],
+      [Setting.InitialWindowSize, 131072],
+      [Setting.MaxFrameSize, 16384],
+    ],
+    windowUpdate: 12517377,
+    pseudoHeaderOrder: ['m', 'p', 'a', 's'],
+  },
   ciphers: [
     0x1301, 0x1303, 0x1302, 0xc02b, 0xc02f, 0xcca9, 0xcca8, 0xc02c, 0xc030, 0xc00a, 0xc009, 0xc013,
     0xc014, 0x009c, 0x009d, 0x002f, 0x0035,
@@ -171,7 +201,19 @@ export const firefox: Impersonation = {
  * and its signature algorithms really do list PSS-SHA384 twice.
  */
 export const safari: Impersonation = {
-  alpn: ['http/1.1'],
+  alpn: ['h2', 'http/1.1'],
+  // Akamai: 2:0,3:100,4:2097152,8:1,9:1|10485760|0|m,s,p,a
+  http2: {
+    settings: [
+      [Setting.EnablePush, 0],
+      [Setting.MaxConcurrentStreams, 100],
+      [Setting.InitialWindowSize, 2097152],
+      [0x8, 1],
+      [0x9, 1],
+    ],
+    windowUpdate: 10485760,
+    pseudoHeaderOrder: ['m', 's', 'p', 'a'],
+  },
   ciphers: [
     GREASE[0],
     0x1302,
