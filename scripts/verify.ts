@@ -22,6 +22,7 @@ for (const [name, profile] of Object.entries(profiles)) {
     encodeExtensions(profile.extensions()),
     profile.greaseNamedGroup,
     profile.extensionOrder === undefined ? undefined : new Uint16Array(profile.extensionOrder),
+    profile.namedGroups === undefined ? undefined : new Uint16Array(profile.namedGroups),
   );
   const verdict = await verifyProfile(name, profile, session.outgoing());
   session.close();

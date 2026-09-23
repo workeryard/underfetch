@@ -274,4 +274,25 @@ describe('http2', () => {
     );
     expect(updates.length).toBeGreaterThan(0);
   });
+
+  it('puts the profile priority on HEADERS, and none when it has none', async () => {
+    const send = async (priority?: { weight: number; exclusive: boolean }) => {
+      const { socket, written } = socketOf([SETTINGS, OK, data('{}')]);
+      const profile = { ...DEFAULT_PROFILE, priority };
+      await (await http2Fetch(socket, new Request('https://example.com/'), profile)).text();
+      return framesIn(written).find((f) => f.type === FrameType.Headers)!;
+    };
+
+    const chrome = await send({ weight: 256, exclusive: true });
+    expect(chrome.flags & Flags.Priority).toBe(Flags.Priority);
+    expect([...chrome.payload.subarray(0, 5)]).toEqual([0x80, 0, 0, 0, 255]);
+    // The header block still decodes once the priority is stepped over.
+    expect(new Hpack().decode(chrome.payload.subarray(5))[0]).toEqual([':method', 'GET']);
+
+    const firefox = await send({ weight: 42, exclusive: false });
+    expect([...firefox.payload.subarray(0, 5)]).toEqual([0, 0, 0, 0, 41]);
+
+    const safari = await send(undefined);
+    expect(safari.flags & Flags.Priority).toBe(0);
+  });
 });

@@ -4,7 +4,7 @@ export const memory: WebAssembly.Memory;
 export const __wbg_tlsclient_free: (a: number, b: number) => void;
 export const tlsclient_close: (a: number) => void;
 export const tlsclient_handshaking: (a: number) => number;
-export const tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => void;
+export const tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number) => void;
 export const tlsclient_outgoing: (a: number, b: number) => void;
 export const tlsclient_plaintext: (a: number, b: number) => void;
 export const tlsclient_protocol: (a: number, b: number) => void;

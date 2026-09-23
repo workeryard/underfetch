@@ -18,6 +18,8 @@ export interface Capture {
   signatureSchemes: readonly number[];
   /** The supported groups open with a GREASE value. */
   greaseNamedGroup: boolean;
+  /** The supported groups as captured, less the post-quantum ones we cannot make. */
+  namedGroups: readonly number[];
   /**
    * Extension types in the order captured. GREASE is written as `0x0a0a` where
    * it leads and `0x1a1a` where it trails, which is how the TLS module tells

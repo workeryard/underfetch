@@ -4,749 +4,2447 @@
 import type { Capture } from './capture';
 
 export const captures = {
-  chrome119: {
-    source: 'chrome_119.0.6045.199_macOS',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
+  "chrome119": {
+    "source": "chrome_119.0.6045.199_macOS",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      0,
+      35,
+      16,
+      43,
+      18,
+      17513,
+      13,
+      65281,
+      10,
+      45,
+      27,
+      65037,
+      11,
+      23,
+      51,
+      5,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome120": {
+    "source": "chrome_120.0.6099.109_macOS",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      0,
+      65281,
+      11,
+      18,
+      17513,
+      13,
+      35,
+      23,
+      27,
+      5,
+      65037,
+      51,
+      16,
+      45,
+      10,
+      43,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome123": {
+    "source": "chrome_123.0.6312.124",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17513,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Google Chrome\";v=\"123\", \"Not:A-Brand\";v=\"8\", \"Chromium\";v=\"123\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome124": {
+    "source": "chrome_124.0.6367.60",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17513,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome131": {
+    "source": "chrome_131.0.6778.86",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17513,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome133a": {
+    "source": "chrome_133.0.6943.55",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17613,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Not(A:Brand\";v=\"99\", \"Google Chrome\";v=\"133\", \"Chromium\";v=\"133\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome136": {
+    "source": "chrome_136.0.7103.93",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17613,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Chromium\";v=\"136\", \"Google Chrome\";v=\"136\", \"Not.A/Brand\";v=\"99\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome142": {
+    "source": "chrome_142.0.7444.176",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17613,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not_A Brand\";v=\"99\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome150": {
+    "source": "chrome_150.0.7871.127_macOS",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      2308,
+      2309,
+      2310,
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17613,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"Google Chrome\";v=\"150\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"macOS\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_806a8c22fdea",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "chrome131_android": {
+    "source": "chrome_131.0.6778.81_android",
+    "ciphers": [
+      2570,
+      4865,
+      4866,
+      4867,
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      1281,
+      2054,
+      1537
+    ],
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24
+    ],
+    "extensions": [
+      2570,
+      17513,
+      45,
+      27,
+      51,
+      43,
+      65281,
+      65037,
+      23,
+      11,
+      5,
+      35,
+      10,
+      18,
+      16,
+      13,
+      0,
+      6682
+    ],
+    "shuffled": true,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "alps": [
+      "h2"
+    ],
+    "echPayload": 176,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          6291456
+        ],
+        [
+          6,
+          262144
+        ]
+      ],
+      "windowUpdate": 15663105,
+      "pseudoHeaderOrder": [
+        "m",
+        "a",
+        "s",
+        "p"
+      ],
+      "priority": {
+        "weight": 256,
+        "exclusive": true
+      }
+    },
+    "headers": [
+      [
+        "sec-ch-ua",
+        "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\""
+      ],
+      [
+        "sec-ch-ua-mobile",
+        "?0"
+      ],
+      [
+        "sec-ch-ua-platform",
+        "\"Android\""
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+      "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+    }
+  },
+  "safari260": {
+    "source": "safari_26.0_macOS",
+    "ciphers": [
+      2570,
+      4866,
+      4867,
+      4865,
+      49196,
+      49195,
+      52393,
+      49200,
+      49199,
+      52392,
+      49162,
+      49161,
+      49172,
+      49171,
+      157,
+      156,
       53,
+      47,
+      49160,
+      49170,
+      10
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 0, 35, 16, 43, 18, 17513, 13, 65281, 10, 45, 27, 65037, 11, 23, 51, 5, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      2053,
+      1281,
+      2054,
+      1537,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24,
+      25
+    ],
+    "extensions": [
+      2570,
+      0,
+      23,
+      65281,
+      10,
+      11,
+      35,
+      16,
+      5,
+      13,
+      18,
+      51,
+      45,
+      43,
+      27,
+      6682
+    ],
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "http2": {
+      "settings": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          100
+        ],
+        [
+          4,
+          2097152
+        ],
+        [
+          9,
+          1
+        ]
+      ],
+      "windowUpdate": 10420225,
+      "pseudoHeaderOrder": [
+        "m",
+        "s",
+        "a",
+        "p"
+      ]
     },
+    "headers": [
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d2014h2_a09f3c656075_d0a99439f9b1",
+      "akamai": "2:0;3:100;4:2097152;9:1|10420225|0|m,s,a,p"
+    }
   },
-  chrome120: {
-    source: 'chrome_120.0.6099.109_macOS',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
+  "safari2601": {
+    "source": "safari_26.0.1_macOS",
+    "ciphers": [
+      2570,
+      4866,
+      4867,
+      4865,
+      49196,
+      49195,
+      52393,
+      49200,
+      49199,
+      52392,
+      49162,
+      49161,
+      49172,
+      49171,
+      157,
+      156,
       53,
+      47,
+      49160,
+      49170,
+      10
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 0, 65281, 11, 18, 17513, 13, 35, 23, 27, 5, 65037, 51, 16, 45, 10, 43, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
+    "signatureSchemes": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      2053,
+      1281,
+      2054,
+      1537,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+    "greaseNamedGroup": true,
+    "namedGroups": [
+      2570,
+      29,
+      23,
+      24,
+      25
+    ],
+    "extensions": [
+      2570,
+      0,
+      23,
+      65281,
+      10,
+      11,
+      16,
+      5,
+      13,
+      18,
+      51,
+      45,
+      43,
+      27,
+      6682
+    ],
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "http2": {
+      "settings": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          100
+        ],
+        [
+          4,
+          2097152
+        ],
+        [
+          9,
+          1
+        ]
+      ],
+      "windowUpdate": 10420225,
+      "pseudoHeaderOrder": [
+        "m",
+        "s",
+        "a",
+        "p"
+      ]
     },
+    "headers": [
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.9"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d2013h2_a09f3c656075_7f0f34a4126d",
+      "akamai": "2:0;3:100;4:2097152;9:1|10420225|0|m,s,a,p"
+    }
   },
-  chrome123: {
-    source: 'chrome_123.0.6312.124',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+  "firefox133": {
+    "source": "firefox_133.0.3_linux",
+    "ciphers": [
+      4865,
+      4867,
+      4866,
+      49195,
+      49199,
+      52393,
+      52392,
+      49196,
+      49200,
+      49162,
+      49161,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17513, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
+    "signatureSchemes": [
+      1027,
+      1283,
+      1539,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      515,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+    "greaseNamedGroup": false,
+    "namedGroups": [
+      29,
+      23,
+      24,
+      25,
+      256,
+      257
+    ],
+    "extensions": [
+      0,
+      23,
+      65281,
+      10,
+      11,
+      35,
+      16,
+      5,
+      34,
+      51,
+      43,
+      13,
+      45,
+      28,
+      27,
+      65037
+    ],
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "echPayload": 223,
+    "delegatedCredentials": [
+      1027,
+      1283,
+      1539,
+      515
+    ],
+    "recordSizeLimit": 16385,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          131072
+        ],
+        [
+          5,
+          16384
+        ]
+      ],
+      "windowUpdate": 12517377,
+      "pseudoHeaderOrder": [
+        "m",
+        "p",
+        "a",
+        "s"
+      ],
+      "priority": {
+        "weight": 42,
+        "exclusive": false
+      }
     },
+    "headers": [
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.5"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "te",
+        "trailers"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1716h2_5b57614c22b0_eeeea6562960",
+      "akamai": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s"
+    }
   },
-  chrome124: {
-    source: 'chrome_124.0.6367.60',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+  "firefox135": {
+    "source": "firefox_135.0.1_linux",
+    "ciphers": [
+      4865,
+      4867,
+      4866,
+      49195,
+      49199,
+      52393,
+      52392,
+      49196,
+      49200,
+      49162,
+      49161,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17513, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
+    "signatureSchemes": [
+      1027,
+      1283,
+      1539,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      515,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+    "greaseNamedGroup": false,
+    "namedGroups": [
+      29,
+      23,
+      24,
+      25,
+      256,
+      257
+    ],
+    "extensions": [
+      0,
+      23,
+      65281,
+      10,
+      11,
+      35,
+      16,
+      5,
+      34,
+      18,
+      51,
+      43,
+      13,
+      45,
+      28,
+      27,
+      65037
+    ],
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "echPayload": 223,
+    "delegatedCredentials": [
+      1027,
+      1283,
+      1539,
+      515
+    ],
+    "recordSizeLimit": 16385,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          131072
+        ],
+        [
+          5,
+          16384
+        ]
+      ],
+      "windowUpdate": 12517377,
+      "pseudoHeaderOrder": [
+        "m",
+        "p",
+        "a",
+        "s"
+      ],
+      "priority": {
+        "weight": 42,
+        "exclusive": false
+      }
     },
+    "headers": [
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.5"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "te",
+        "trailers"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1717h2_5b57614c22b0_3cbfd9057e0d",
+      "akamai": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s"
+    }
   },
-  chrome131: {
-    source: 'chrome_131.0.6778.86',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+  "firefox144": {
+    "source": "firefox_144.0.0_linux",
+    "ciphers": [
+      4865,
+      4867,
+      4866,
+      49195,
+      49199,
+      52393,
+      52392,
+      49196,
+      49200,
+      49162,
+      49161,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17513, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
+    "signatureSchemes": [
+      1027,
+      1283,
+      1539,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      515,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+    "greaseNamedGroup": false,
+    "namedGroups": [
+      29,
+      23,
+      24,
+      25,
+      256,
+      257
+    ],
+    "extensions": [
+      0,
+      23,
+      65281,
+      10,
+      11,
+      35,
+      16,
+      5,
+      34,
+      18,
+      51,
+      43,
+      13,
+      45,
+      28,
+      27,
+      65037
+    ],
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "echPayload": 223,
+    "delegatedCredentials": [
+      1027,
+      1283,
+      1539,
+      515
+    ],
+    "recordSizeLimit": 16385,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          131072
+        ],
+        [
+          5,
+          16384
+        ]
+      ],
+      "windowUpdate": 12517377,
+      "pseudoHeaderOrder": [
+        "m",
+        "p",
+        "a",
+        "s"
+      ],
+      "priority": {
+        "weight": 42,
+        "exclusive": false
+      }
     },
+    "headers": [
+      [
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0"
+      ],
+      [
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      ],
+      [
+        "accept-language",
+        "en-US,en;q=0.5"
+      ],
+      [
+        "accept-encoding",
+        "gzip, deflate"
+      ],
+      [
+        "upgrade-insecure-requests",
+        "1"
+      ],
+      [
+        "sec-fetch-dest",
+        "document"
+      ],
+      [
+        "sec-fetch-mode",
+        "navigate"
+      ],
+      [
+        "sec-fetch-site",
+        "none"
+      ],
+      [
+        "sec-fetch-user",
+        "?1"
+      ],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "te",
+        "trailers"
+      ]
+    ],
+    "expected": {
+      "ja4": "t13d1717h2_5b57614c22b0_3cbfd9057e0d",
+      "akamai": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s"
+    }
   },
-  chrome133a: {
-    source: 'chrome_133.0.6943.55',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+  "tor145": {
+    "source": "tor_14.5_macOS",
+    "ciphers": [
+      4865,
+      4867,
+      4866,
+      49195,
+      49199,
+      52393,
+      52392,
+      49196,
+      49200,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17613, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
+    "signatureSchemes": [
+      1027,
+      1283,
+      1539,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      515,
+      513
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_d8a2da3f94cd',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
-    },
-  },
-  chrome136: {
-    source: 'chrome_136.0.7103.93',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+    "greaseNamedGroup": false,
+    "namedGroups": [
+      29,
+      23,
+      24,
+      25,
+      256,
+      257
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17613, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-      ],
-      [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
+    "extensions": [
+      0,
+      23,
+      65281,
+      10,
+      11,
+      16,
+      5,
+      34,
+      51,
+      43,
+      13,
+      28,
+      65037
     ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_d8a2da3f94cd',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
-    },
-  },
-  chrome142: {
-    source: 'chrome_142.0.7444.176',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
+    "shuffled": false,
+    "alpn": [
+      "h2",
+      "http/1.1"
     ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17613, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
+    "echPayload": 223,
+    "delegatedCredentials": [
+      1027,
+      1283,
+      1539,
+      515
+    ],
+    "recordSizeLimit": 16385,
+    "http2": {
+      "settings": [
+        [
+          1,
+          65536
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          131072
+        ],
+        [
+          5,
+          16384
+        ]
       ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
+      "windowUpdate": 12517377,
+      "pseudoHeaderOrder": [
+        "m",
+        "p",
+        "a",
+        "s"
+      ],
+      "priority": {
+        "weight": 42,
+        "exclusive": false
+      }
     },
-    headers: [
-      ['sec-ch-ua', '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
+    "headers": [
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+        "user-agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0"
       ],
       [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
-    ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_d8a2da3f94cd',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
-    },
-  },
-  chrome150: {
-    source: 'chrome_150.0.7871.127_macOS',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
-    ],
-    signatureSchemes: [2308, 2309, 2310, 1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17613, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"macOS"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        "accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       ],
       [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
-    ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_806a8c22fdea',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
-    },
-  },
-  chrome131_android: {
-    source: 'chrome_131.0.6778.81_android',
-    ciphers: [
-      2570, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47,
-      53,
-    ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 1281, 2054, 1537],
-    greaseNamedGroup: true,
-    extensions: [2570, 17513, 45, 27, 51, 43, 65281, 65037, 23, 11, 5, 35, 10, 18, 16, 13, 0, 6682],
-    shuffled: true,
-    alpn: ['h2', 'http/1.1'],
-    alps: ['h2'],
-    echPayload: 176,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 6291456],
-        [6, 262144],
-      ],
-      windowUpdate: 15663105,
-      pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-    },
-    headers: [
-      ['sec-ch-ua', '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"'],
-      ['sec-ch-ua-mobile', '?0'],
-      ['sec-ch-ua-platform', '"Android"'],
-      ['upgrade-insecure-requests', '1'],
-      [
-        'user-agent',
-        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+        "accept-language",
+        "en-US,en;q=0.5"
       ],
       [
-        'accept',
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        "accept-encoding",
+        "gzip, deflate"
       ],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-user', '?1'],
-      ['sec-fetch-dest', 'document'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
-    ],
-    expected: {
-      ja4: 't13d1516h2_8daaf6152771_02713d6af862',
-      akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
-    },
-  },
-  safari260: {
-    source: 'safari_26.0_macOS',
-    ciphers: [
-      2570, 4866, 4867, 4865, 49196, 49195, 52393, 49200, 49199, 52392, 49162, 49161, 49172, 49171,
-      157, 156, 53, 47, 49160, 49170, 10,
-    ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 2053, 1281, 2054, 1537, 513],
-    greaseNamedGroup: true,
-    extensions: [2570, 0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27, 6682],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    http2: {
-      settings: [
-        [2, 0],
-        [3, 100],
-        [4, 2097152],
-        [9, 1],
-      ],
-      windowUpdate: 10420225,
-      pseudoHeaderOrder: ['m', 's', 'a', 'p'],
-    },
-    headers: [
-      ['sec-fetch-dest', 'document'],
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+        "sec-gpc",
+        "1"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
-      ['accept-encoding', 'gzip, deflate'],
-    ],
-    expected: {
-      ja4: 't13d2014h2_a09f3c656075_d0a99439f9b1',
-      akamai: '2:0;3:100;4:2097152;9:1|10420225|0|m,s,a,p',
-    },
-  },
-  safari2601: {
-    source: 'safari_26.0.1_macOS',
-    ciphers: [
-      2570, 4866, 4867, 4865, 49196, 49195, 52393, 49200, 49199, 52392, 49162, 49161, 49172, 49171,
-      157, 156, 53, 47, 49160, 49170, 10,
-    ],
-    signatureSchemes: [1027, 2052, 1025, 1283, 2053, 2053, 1281, 2054, 1537, 513],
-    greaseNamedGroup: true,
-    extensions: [2570, 0, 23, 65281, 10, 11, 16, 5, 13, 18, 51, 45, 43, 27, 6682],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    http2: {
-      settings: [
-        [2, 0],
-        [3, 100],
-        [4, 2097152],
-        [9, 1],
-      ],
-      windowUpdate: 10420225,
-      pseudoHeaderOrder: ['m', 's', 'a', 'p'],
-    },
-    headers: [
-      ['sec-fetch-dest', 'document'],
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15',
+        "upgrade-insecure-requests",
+        "1"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-mode', 'navigate'],
-      ['accept-language', 'en-US,en;q=0.9'],
-      ['priority', 'u=0, i'],
-      ['accept-encoding', 'gzip, deflate'],
-    ],
-    expected: {
-      ja4: 't13d2013h2_a09f3c656075_7f0f34a4126d',
-      akamai: '2:0;3:100;4:2097152;9:1|10420225|0|m,s,a,p',
-    },
-  },
-  firefox133: {
-    source: 'firefox_133.0.3_linux',
-    ciphers: [
-      4865, 4867, 4866, 49195, 49199, 52393, 52392, 49196, 49200, 49162, 49161, 49171, 49172, 156,
-      157, 47, 53,
-    ],
-    signatureSchemes: [1027, 1283, 1539, 2052, 2053, 2054, 1025, 1281, 1537, 515, 513],
-    greaseNamedGroup: false,
-    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 34, 51, 43, 13, 45, 28, 27, 65037],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    echPayload: 223,
-    delegatedCredentials: [1027, 1283, 1539, 515],
-    recordSizeLimit: 16385,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 131072],
-        [5, 16384],
-      ],
-      windowUpdate: 12517377,
-      pseudoHeaderOrder: ['m', 'p', 'a', 's'],
-    },
-    headers: [
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0',
+        "sec-fetch-dest",
+        "document"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['accept-language', 'en-US,en;q=0.5'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['upgrade-insecure-requests', '1'],
-      ['sec-fetch-dest', 'document'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-user', '?1'],
-      ['priority', 'u=0, i'],
-      ['te', 'trailers'],
-    ],
-    expected: {
-      ja4: 't13d1716h2_5b57614c22b0_eeeea6562960',
-      akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
-    },
-  },
-  firefox135: {
-    source: 'firefox_135.0.1_linux',
-    ciphers: [
-      4865, 4867, 4866, 49195, 49199, 52393, 52392, 49196, 49200, 49162, 49161, 49171, 49172, 156,
-      157, 47, 53,
-    ],
-    signatureSchemes: [1027, 1283, 1539, 2052, 2053, 2054, 1025, 1281, 1537, 515, 513],
-    greaseNamedGroup: false,
-    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 34, 18, 51, 43, 13, 45, 28, 27, 65037],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    echPayload: 223,
-    delegatedCredentials: [1027, 1283, 1539, 515],
-    recordSizeLimit: 16385,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 131072],
-        [5, 16384],
-      ],
-      windowUpdate: 12517377,
-      pseudoHeaderOrder: ['m', 'p', 'a', 's'],
-    },
-    headers: [
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0',
+        "sec-fetch-mode",
+        "navigate"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['accept-language', 'en-US,en;q=0.5'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['upgrade-insecure-requests', '1'],
-      ['sec-fetch-dest', 'document'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-user', '?1'],
-      ['priority', 'u=0, i'],
-      ['te', 'trailers'],
-    ],
-    expected: {
-      ja4: 't13d1717h2_5b57614c22b0_3cbfd9057e0d',
-      akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
-    },
-  },
-  firefox144: {
-    source: 'firefox_144.0.0_linux',
-    ciphers: [
-      4865, 4867, 4866, 49195, 49199, 52393, 52392, 49196, 49200, 49162, 49161, 49171, 49172, 156,
-      157, 47, 53,
-    ],
-    signatureSchemes: [1027, 1283, 1539, 2052, 2053, 2054, 1025, 1281, 1537, 515, 513],
-    greaseNamedGroup: false,
-    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 34, 18, 51, 43, 13, 45, 28, 27, 65037],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    echPayload: 223,
-    delegatedCredentials: [1027, 1283, 1539, 515],
-    recordSizeLimit: 16385,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 131072],
-        [5, 16384],
-      ],
-      windowUpdate: 12517377,
-      pseudoHeaderOrder: ['m', 'p', 'a', 's'],
-    },
-    headers: [
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0',
+        "sec-fetch-site",
+        "none"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['accept-language', 'en-US,en;q=0.5'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['upgrade-insecure-requests', '1'],
-      ['sec-fetch-dest', 'document'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-user', '?1'],
-      ['priority', 'u=0, i'],
-      ['te', 'trailers'],
-    ],
-    expected: {
-      ja4: 't13d1717h2_5b57614c22b0_3cbfd9057e0d',
-      akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
-    },
-  },
-  tor145: {
-    source: 'tor_14.5_macOS',
-    ciphers: [
-      4865, 4867, 4866, 49195, 49199, 52393, 52392, 49196, 49200, 49171, 49172, 156, 157, 47, 53,
-    ],
-    signatureSchemes: [1027, 1283, 1539, 2052, 2053, 2054, 1025, 1281, 1537, 515, 513],
-    greaseNamedGroup: false,
-    extensions: [0, 23, 65281, 10, 11, 16, 5, 34, 51, 43, 13, 28, 65037],
-    shuffled: false,
-    alpn: ['h2', 'http/1.1'],
-    echPayload: 223,
-    delegatedCredentials: [1027, 1283, 1539, 515],
-    recordSizeLimit: 16385,
-    http2: {
-      settings: [
-        [1, 65536],
-        [2, 0],
-        [4, 131072],
-        [5, 16384],
-      ],
-      windowUpdate: 12517377,
-      pseudoHeaderOrder: ['m', 'p', 'a', 's'],
-    },
-    headers: [
       [
-        'user-agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0',
+        "sec-fetch-user",
+        "?1"
       ],
-      ['accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'],
-      ['accept-language', 'en-US,en;q=0.5'],
-      ['accept-encoding', 'gzip, deflate'],
-      ['sec-gpc', '1'],
-      ['upgrade-insecure-requests', '1'],
-      ['sec-fetch-dest', 'document'],
-      ['sec-fetch-mode', 'navigate'],
-      ['sec-fetch-site', 'none'],
-      ['sec-fetch-user', '?1'],
-      ['priority', 'u=0, i'],
-      ['te', 'trailers'],
+      [
+        "priority",
+        "u=0, i"
+      ],
+      [
+        "te",
+        "trailers"
+      ]
     ],
-    expected: {
-      ja4: 't13d1513h2_8daaf6152771_748f4c70de1c',
-      akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
-    },
-  },
+    "expected": {
+      "ja4": "t13d1513h2_8daaf6152771_748f4c70de1c",
+      "akamai": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s"
+    }
+  }
 } as const satisfies Record<string, Capture>;

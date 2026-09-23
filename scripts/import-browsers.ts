@@ -82,7 +82,22 @@ async function text(url: string): Promise<string> {
   return response.text();
 }
 
+/** X25519MLKEM768 and X25519Kyber768Draft00, which the TLS module cannot make. */
+const POST_QUANTUM = [0x11ec, 0x6399];
+
 const grease = (value: number | string) => (value === 'GREASE' ? GREASE[0] : Number(value));
+
+/**
+ * The priority each family puts on its HEADERS frame. The captures do not
+ * record it; these are curl-impersonate's, from lib/impersonate.c. Safari
+ * sends none.
+ */
+const PRIORITY: Record<string, { weight: number; exclusive: boolean } | undefined> = {
+  chrome: { weight: 256, exclusive: true },
+  edge: { weight: 256, exclusive: true },
+  firefox: { weight: 42, exclusive: false },
+  tor: { weight: 42, exclusive: false },
+};
 
 /** Chrome began shuffling its extensions in 110, and every Chromium with it. */
 function shuffles(browser: string, version: string): boolean {
@@ -119,6 +134,7 @@ async function convert(file: string, sig: RawSignature): Promise<Capture | strin
     pseudoHeaderOrder: (headersFrame.pseudo_headers ?? []).map(
       (name) => name.slice(1, 2) as 'm' | 'a' | 's' | 'p',
     ),
+    priority: PRIORITY[sig.browser.name],
   };
   const headers = (headersFrame.headers ?? []).map((line): [string, string] => {
     const colon = line.indexOf(':');
@@ -138,6 +154,10 @@ async function convert(file: string, sig: RawSignature): Promise<Capture | strin
     ciphers,
     signatureSchemes,
     greaseNamedGroup: groups[0] === 'GREASE',
+    // Named, but never the post-quantum hybrids: a group advertised without a
+    // key share invites a HelloRetryRequest for it, and nearly every server
+    // prefers these, so offering one we cannot make fails the handshake.
+    namedGroups: groups.map(grease).filter((group) => !POST_QUANTUM.includes(group)),
     extensions,
     shuffled: shuffles(browser, sig.browser.version),
     alpn,

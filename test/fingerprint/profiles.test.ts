@@ -84,6 +84,7 @@ function helloFor(as: Impersonation, alpn = 'http/1.1'): Hello {
     encodeExtensions(as.extensions()),
     as.greaseNamedGroup,
     as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
+    as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
   );
   return parse(session.outgoing());
 }
@@ -249,6 +250,7 @@ describe('the ClientHello', () => {
       encodeExtensions(as.extensions()),
       as.greaseNamedGroup,
       as.extensionOrder === undefined ? undefined : new Uint16Array(as.extensionOrder),
+      as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
     );
     expect(await fullJa4(parseClientHello(session.outgoing()))).toBe(as.expected.ja4);
   });

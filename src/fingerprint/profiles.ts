@@ -36,6 +36,11 @@ export interface Impersonation {
   /** Puts a GREASE value at the head of the supported groups. */
   greaseNamedGroup: boolean;
   /**
+   * The supported groups to advertise, GREASE included, overriding the TLS
+   * library's own list. The key share is still one it can make.
+   */
+  namedGroups?: readonly number[] | undefined;
+  /**
    * What the browser sends with every request, in its order. A handshake that
    * matches Chrome while the headers say "not a browser" fools nobody, and
    * headers are the first thing most checks read.
@@ -156,6 +161,7 @@ function fromCapture(capture: Capture): Impersonation {
     ciphers: capture.ciphers,
     signatureSchemes: capture.signatureSchemes,
     greaseNamedGroup: capture.greaseNamedGroup,
+    namedGroups: capture.namedGroups,
     // Chrome shuffles; a fixed order would itself give it away.
     extensionOrder: capture.shuffled ? undefined : capture.extensions,
     extensions: () =>

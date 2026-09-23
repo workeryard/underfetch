@@ -18,7 +18,7 @@ export class TlsClient {
      * out and rustls makes its own choices, which are safe and instantly
      * recognisable as rustls.
      */
-    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null);
+    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null);
     /**
      * Ciphertext waiting to go out on the socket. Empty when there is none.
      */
@@ -51,7 +51,7 @@ export interface InitOutput {
     readonly __wbg_tlsclient_free: (a: number, b: number) => void;
     readonly tlsclient_close: (a: number) => void;
     readonly tlsclient_handshaking: (a: number) => number;
-    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => void;
+    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number) => void;
     readonly tlsclient_outgoing: (a: number, b: number) => void;
     readonly tlsclient_plaintext: (a: number, b: number) => void;
     readonly tlsclient_protocol: (a: number, b: number) => void;

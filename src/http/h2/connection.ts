@@ -42,6 +42,11 @@ export interface Http2Profile {
   windowUpdate: number;
   /** Pseudo-header order, as the letters an Akamai fingerprint uses. */
   pseudoHeaderOrder: readonly ('m' | 'a' | 's' | 'p')[];
+  /**
+   * The priority the request's HEADERS frame carries. Chrome and Firefox send
+   * one, each with its own weight; Safari sends none, which is left out here.
+   */
+  priority?: { weight: number; exclusive: boolean } | undefined;
 }
 
 /** What Chrome sends, and a reasonable default for anything else. */
@@ -167,6 +172,20 @@ function requestHeaders(request: Request, url: URL, profile: Http2Profile): Head
 }
 
 /**
+ * Puts the priority fields in front of a header block: the exclusive bit and
+ * a dependency on stream 0, then the weight less one, as RFC 9113 §6.2 writes
+ * it.
+ */
+function withPriority(block: Uint8Array, priority: Http2Profile['priority']): Uint8Array {
+  if (priority === undefined) return block;
+  const out = new Uint8Array(5 + block.length);
+  new DataView(out.buffer).setUint32(0, priority.exclusive ? 0x8000_0000 : 0);
+  out[4] = priority.weight - 1;
+  out.set(block, 5);
+  return out;
+}
+
+/**
  * Sends `request` and returns the answer with its body still streaming.
  * `socket` is spent afterwards; closing it is the caller's job.
  */
@@ -190,9 +209,10 @@ export async function http2Fetch(
     );
   }
 
-  const block = hpack.encode(requestHeaders(request, url, profile));
+  const block = withPriority(hpack.encode(requestHeaders(request, url, profile)), profile.priority);
   const endStream = body === null || body.byteLength === 0 ? Flags.EndStream : 0;
-  await writer.write(encodeFrame(FrameType.Headers, Flags.EndHeaders | endStream, STREAM, block));
+  const flags = Flags.EndHeaders | endStream | (profile.priority ? Flags.Priority : 0);
+  await writer.write(encodeFrame(FrameType.Headers, flags, STREAM, block));
   const allowance: Allowance = {
     maxFrame: DEFAULT_MAX_FRAME,
     stream: DEFAULT_WINDOW,

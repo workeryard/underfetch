@@ -214,7 +214,14 @@ fn emit_client_hello_for_retry(
 
     let mut exts = Box::new(ClientExtensions {
         // offer groups which are usable for any offered version
-        named_groups: Some({
+        named_groups: Some(match config.fingerprint.as_ref() {
+            // FORK: the caller's list, as the browser sends it, when it gave one.
+            Some(fp) if !fp.named_groups.is_empty() => fp
+                .named_groups
+                .iter()
+                .map(|&group| crate::NamedGroup::from(group))
+                .collect(),
+            _ => {
             // FORK: a browser puts a GREASE value at the head of this list.
             let mut groups: Vec<_> = config
                 .fingerprint
@@ -231,6 +238,7 @@ fn emit_client_hello_for_retry(
                     .map(|skxg| skxg.name()),
             );
             groups
+            }
         }),
         supported_versions: Some(supported_versions),
         // FORK: the caller's list, in the caller's order, when it gave one.

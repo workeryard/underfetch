@@ -45,6 +45,12 @@ pub struct Fingerprint {
     /// The exact order to write extensions in. Empty keeps rustls' shuffle,
     /// which is what Chrome does; Firefox and Safari need a list.
     pub extension_order: Vec<u16>,
+    /// The supported groups to advertise, verbatim, GREASE included. Empty
+    /// leaves rustls' own list. Groups rustls cannot do may be named: the key
+    /// share is still one rustls can make, and a server that asks for a
+    /// named-but-unsupported group fails the handshake rather than anything
+    /// quieter.
+    pub named_groups: Vec<u16>,
 }
 
 impl Fingerprint {
