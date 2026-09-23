@@ -99,6 +99,24 @@ export default {
       return Response.json({ url, rounds, results: await benchmark(url, rounds) });
     }
 
+    if (new URL(request.url).pathname === '/fetch') {
+      const url = query.get('url');
+      if (url === null) return new Response('give me ?url=', { status: 400 });
+      const as = query.get('as') as ProfileName | null;
+      const started = Date.now();
+      const response = await new Session({
+        timeoutMs: 20_000,
+        ...(as ? { impersonate: as } : {}),
+      }).fetch(url);
+      const body = await response.text();
+      return Response.json({
+        status: response.status,
+        elapsedMs: Date.now() - started,
+        headers: Object.fromEntries(response.headers),
+        body: body.slice(0, 700),
+      });
+    }
+
     const asked = query.get('as');
     const names = (asked ? [asked] : Object.keys(profiles)) as ProfileName[];
     const results = [];
