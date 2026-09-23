@@ -71,6 +71,7 @@ function hello(alpn = 'http/1.1'): Hello {
     new Uint16Array(chrome.ciphers),
     new Uint16Array(chrome.signatureSchemes),
     encodeExtensions(chrome.extensions()),
+    chrome.greaseNamedGroup,
   );
   return parse(session.outgoing());
 }

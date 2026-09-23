@@ -24,6 +24,7 @@ function client(hostname: string, alpn: string | undefined, as: Impersonation | 
     new Uint16Array(as.ciphers),
     new Uint16Array(as.signatureSchemes),
     encodeExtensions(as.extensions()),
+    as.greaseNamedGroup,
   );
 }
 

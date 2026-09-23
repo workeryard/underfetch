@@ -59,7 +59,7 @@ Your `wrangler.jsonc` needs the WebAssembly rule:
 
 ```jsonc
 {
-  "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallback": true }]
+  "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallback": true }],
 }
 ```
 
@@ -116,38 +116,66 @@ different TLS stack means implementing six methods.
 
 ## What it does and does not do
 
-| | |
-| --- | --- |
-| SOCKS5, with username/password auth | yes |
-| HTTP `CONNECT`, with basic auth | yes |
-| TLS 1.2 and 1.3, certificates verified | yes |
-| Streaming request and response bodies | yes |
-| gzip and deflate, undone transparently | yes |
-| Timeouts and `AbortSignal` | yes |
-| GREASE in the ClientHello | yes |
-| HTTP/2 | not yet |
-| Browser fingerprint impersonation | in progress |
-| HTTP/3 | never — a Worker has no UDP |
+|                                        |                             |
+| -------------------------------------- | --------------------------- |
+| SOCKS5, with username/password auth    | yes                         |
+| HTTP `CONNECT`, with basic auth        | yes                         |
+| TLS 1.2 and 1.3, certificates verified | yes                         |
+| Streaming request and response bodies  | yes                         |
+| gzip and deflate, undone transparently | yes                         |
+| Timeouts and `AbortSignal`             | yes                         |
+| GREASE in the ClientHello              | yes                         |
+| HTTP/2                                 | not yet                     |
+| Browser fingerprint impersonation      | in progress                 |
+| HTTP/3                                 | never — a Worker has no UDP |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is
 resolved at the proxy rather than leaking from the Worker.
 
 ## The fingerprint
 
-The bundled rustls is a fork, because a stock rustls ClientHello is
-recognisable at a glance: it sends no GREASE, and nothing else on the web omits
-it. The fork adds GREASE to the cipher list, the supported groups and the
-extension list.
-
-It is not yet a browser. Chrome offers 15 cipher suites to our 10, 16
-extensions to our 11, and `h2` where we can only honestly offer `http/1.1` —
-advertising `h2` without speaking it would break the handshake the moment a
-server took us up on it. So HTTP/2 comes before the fingerprint can match.
-
-Measure for yourself rather than trusting this paragraph:
+A stock rustls ClientHello is recognisable at a glance: it sends no GREASE, and
+nothing else on the web omits it. Ask for a browser instead:
 
 ```ts
-const response = await new Session().fetch('https://tls.peet.ws/api/all');
+const session = new Session({ impersonate: 'chrome' });
+```
+
+Chrome 133's TLS fingerprint then matches exactly, bar its ALPN:
+
+|     | ours                                   | Chrome 133                             |
+| --- | -------------------------------------- | -------------------------------------- |
+| JA4 | `t13d1516h1_8daaf6152771_d8a2da3f94cd` | `t13d1516h2_8daaf6152771_d8a2da3f94cd` |
+
+The `h1` is the one gap, and it is honest: Chrome offers `h2`, and advertising
+it before HTTP/2 exists here would fail the first handshake a server accepted
+it on. So HTTP/2 comes before the fingerprint can be complete.
+
+A profile is data, not code — see `src/impersonate.ts`. Adding a browser means
+writing down what it sends, taken from
+[utls](https://github.com/refraction-networking/utls)'s `u_parrots.go`:
+
+```ts
+const myBrowser: Impersonation = {
+  alpn: ['http/1.1'],
+  ciphers: [GREASE[0], 0x1301 /* ... */],
+  signatureSchemes: [0x0403 /* ... */],
+  greaseNamedGroup: true,
+  extensions: () => [[0xff01, new Uint8Array([0])] /* ... */],
+};
+
+new Session({ impersonate: myBrowser });
+```
+
+Firefox and Safari are not shipped yet. Firefox needs one thing the fork does
+not do: it sends its extensions in a fixed order, where rustls (like Chrome)
+shuffles them.
+
+Given no profile, nothing is impersonated and no GREASE is sent. Measure any of
+this yourself rather than trusting the table:
+
+```ts
+await new Session({ impersonate: 'chrome' }).fetch('https://tls.peet.ws/api/all');
 ```
 
 ## Building the WebAssembly
