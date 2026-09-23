@@ -1,4 +1,4 @@
-// Writes src/browsers.ts from curl-impersonate's captures of real browsers.
+// Writes src/fingerprint/browsers.ts from curl-impersonate's captures of real browsers.
 //
 // Each capture is a ClientHello and an HTTP/2 opening taken from the browser
 // itself, which is the same data impers and curl_cffi are tested against. The
@@ -11,9 +11,9 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
-import { GREASE } from '../src/grease';
-import { akamai, ja4 } from '../src/verify';
-import type { Capture } from '../src/capture';
+import { GREASE } from '../src/fingerprint/grease';
+import { akamai, ja4 } from '../src/fingerprint/verify';
+import type { Capture } from '../src/fingerprint/capture';
 
 const REPO = 'lexiforest/curl-impersonate';
 const PINNED = '5bfbe06a949723b20c369384a40755668371bbe1';
@@ -209,5 +209,5 @@ import type { Capture } from './capture';
 
 export const captures = ${JSON.stringify(out, null, 2)} as const satisfies Record<string, Capture>;
 `;
-writeFileSync(fileURLToPath(new URL('../src/browsers.ts', import.meta.url)), body);
-console.log(`\nwrote ${Object.keys(out).length} browsers to src/browsers.ts`);
+writeFileSync(fileURLToPath(new URL('../src/fingerprint/browsers.ts', import.meta.url)), body);
+console.log(`\nwrote ${Object.keys(out).length} browsers to src/fingerprint/browsers.ts`);

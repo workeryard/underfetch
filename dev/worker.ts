@@ -8,12 +8,12 @@
  * underneath us, or a profile that is right on paper and wrong on the wire.
  */
 
-import { profiles, type ProfileName } from '../src/impersonate';
-import { akamai } from '../src/verify';
+import { profiles, type ProfileName } from '../src/fingerprint/profiles';
+import { akamai } from '../src/fingerprint/verify';
 import { Session } from '../src/workers/index';
-import { cases } from './cases';
-import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases-extra';
-import type { Outcome } from './probe';
+import { cases } from './cases/http';
+import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
+import type { Outcome } from './cases/probe';
 
 /** Reports back what the handshake and the HTTP/2 preface looked like. */
 const CHECKER = 'https://tls.peet.ws/api/all';

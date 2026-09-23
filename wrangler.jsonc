@@ -3,7 +3,7 @@
   "name": "underfetch-verify",
   "main": "dev/worker.ts",
   "compatibility_date": "2026-09-21",
-  // The TLS module arrives as a WebAssembly.Module, which is how `wasm-tls.ts`
+  // The TLS module arrives as a WebAssembly.Module, which is how `src/tls/wasm.ts`
   // expects it; without this rule the import is a URL and nothing works.
   "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallback": true }]
 }

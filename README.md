@@ -258,7 +258,7 @@ and no zstd, and advertising what cannot be decoded is how a handshake breaks.
 And the `sec-ch-ua` brand list rotates between Chrome releases, so check it
 against a real browser if it matters to you.
 
-The browsers are data, not code: `src/browsers.ts`, generated from
+The browsers are data, not code: `src/fingerprint/browsers.ts`, generated from
 [curl-impersonate](https://github.com/lexiforest/curl-impersonate)'s
 `tests/signatures`, which are ClientHellos and HTTP/2 openings captured from
 the real browsers — the same data impers is tested against. The fingerprints
@@ -326,6 +326,23 @@ pnpm verify:live     # then: curl localhost:8799
 
 In code, `selfTest()` from `underfetch/workers` returns the same verdicts, so a
 Worker can check itself wherever it runs.
+
+## Layout
+
+```
+src/
+  index.ts        the runtime-free core, re-exported
+  client/         what a caller uses: fetch, Session, redirects, retries, cookies
+  http/           HTTP/1.1, and HTTP/2 with its frames and header table
+  tls/            driving TLS over a socket; rustls compiled to WebAssembly
+  net/            sockets and the proxy handshakes, SOCKS5 and CONNECT
+  fingerprint/    the browsers, generated from captures, and the proof we match them
+  workers/        the Cloudflare adapter, the only place that names a runtime
+test/             the same folders as src/, run in plain node
+dev/              a Worker that checks everything against real servers
+scripts/          verify, and importing browsers from their captures
+rust-tls/         the rustls fork and its WebAssembly build
+```
 
 ## Building the WebAssembly
 

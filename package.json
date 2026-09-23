@@ -16,7 +16,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./workers": "./src/workers/index.ts",
-    "./wasm": "./src/wasm-tls.ts"
+    "./wasm": "./src/tls/wasm.ts"
   },
   "files": [
     "src",

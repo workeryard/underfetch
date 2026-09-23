@@ -49,7 +49,7 @@ export default tseslint.config(
   },
   {
     // Generated data, one browser after another; its length is the catalogue's.
-    files: ['src/browsers.ts'],
+    files: ['src/fingerprint/browsers.ts'],
     rules: { 'max-lines': 'off' },
   },
 );

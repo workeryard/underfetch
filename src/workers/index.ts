@@ -8,11 +8,15 @@
  */
 
 import { connect } from 'cloudflare:sockets';
-import { profiles, type Impersonation, type ProfileName } from '../impersonate';
-import { Session as PlainSession, type SessionDefaults, type SessionRequestInit } from '../session';
-import { verifyProfile, type Verdict } from '../verify';
-import { impersonating } from '../wasm-tls';
-import type { ByteSocket, Dial } from '../socket';
+import { profiles, type Impersonation, type ProfileName } from '../fingerprint/profiles';
+import {
+  Session as PlainSession,
+  type SessionDefaults,
+  type SessionRequestInit,
+} from '../client/session';
+import { verifyProfile, type Verdict } from '../fingerprint/verify';
+import { impersonating } from '../tls/wasm';
+import type { ByteSocket, Dial } from '../net/socket';
 
 /**
  * Opens a plain TCP connection. TLS is never asked of the platform: its own
@@ -121,13 +125,13 @@ export async function selfTest(): Promise<Verdict[]> {
   return out;
 }
 
-export { akamai, ja4, parseClientHello, verifyProfile } from '../verify';
-export type { ClientHello, Verdict } from '../verify';
-export { impersonating, wasmTls } from '../wasm-tls';
-export { CookieJar } from '../cookies';
-export type { Cookie } from '../cookies';
-export type { RetryOptions } from '../retry';
-export { profiles } from '../impersonate';
-export type { Impersonation, ProfileName } from '../impersonate';
-export type { SessionDefaults, SessionRequestInit } from '../session';
-export type { HttpProxy, Proxy, Socks5Proxy } from '../socket';
+export { akamai, ja4, parseClientHello, verifyProfile } from '../fingerprint/verify';
+export type { ClientHello, Verdict } from '../fingerprint/verify';
+export { impersonating, wasmTls } from '../tls/wasm';
+export { CookieJar } from '../client/cookies';
+export type { Cookie } from '../client/cookies';
+export type { RetryOptions } from '../client/retry';
+export { profiles } from '../fingerprint/profiles';
+export type { Impersonation, ProfileName } from '../fingerprint/profiles';
+export type { SessionDefaults, SessionRequestInit } from '../client/session';
+export type { HttpProxy, Proxy, Socks5Proxy } from '../net/socket';

@@ -2,8 +2,8 @@
 // No network: both fingerprints are computed from bytes generated here.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { encodeExtensions, profiles } from '../src/impersonate';
-import { verifyProfile } from '../src/verify';
+import { encodeExtensions, profiles } from '../src/fingerprint/profiles';
+import { verifyProfile } from '../src/fingerprint/verify';
 import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
 
 initSync({
