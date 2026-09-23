@@ -1,7 +1,8 @@
 # underfetch
 
 HTTP over raw sockets for Cloudflare Workers: SOCKS5 and HTTP `CONNECT`
-proxies, TLS in WebAssembly, and a ClientHello you control.
+proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look
+like Chrome, Firefox or Safari.
 
 ```ts
 import { Session } from 'underfetch/workers';
@@ -160,18 +161,19 @@ different TLS stack means implementing six methods.
 
 ## What it does and does not do
 
-|                                        |                             |
-| -------------------------------------- | --------------------------- |
-| SOCKS5, with username/password auth    | yes                         |
-| HTTP `CONNECT`, with basic auth        | yes                         |
-| TLS 1.2 and 1.3, certificates verified | yes                         |
-| Streaming request and response bodies  | yes                         |
-| gzip and deflate, undone transparently | yes                         |
-| Timeouts and `AbortSignal`             | yes                         |
-| GREASE in the ClientHello              | yes                         |
-| HTTP/2                                 | not yet                     |
-| Browser fingerprint impersonation      | in progress                 |
-| HTTP/3                                 | never — a Worker has no UDP |
+|                                                  |                             |
+| ------------------------------------------------ | --------------------------- |
+| SOCKS5, with username/password auth              | yes                         |
+| HTTP `CONNECT`, with basic auth                  | yes                         |
+| TLS 1.2 and 1.3, certificates verified           | yes                         |
+| Streaming request and response bodies            | yes                         |
+| gzip and deflate, undone transparently           | yes                         |
+| Timeouts and `AbortSignal`                       | yes                         |
+| Redirects, with credentials dropped across hosts | yes                         |
+| HTTP/2, with HPACK and flow control              | yes                         |
+| Browser impersonation, TLS and HTTP/2            | Chrome, Firefox, Safari     |
+| Cookies, retries                                 | not yet                     |
+| HTTP/3                                           | never — a Worker has no UDP |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is
 resolved at the proxy rather than leaking from the Worker.
@@ -185,15 +187,21 @@ nothing else on the web omits it. Ask for a browser instead:
 const session = new Session({ impersonate: 'chrome' });
 ```
 
-Chrome 133's TLS fingerprint then matches exactly, bar its ALPN:
+Both fingerprints a server reads then match the real browser exactly — JA4 from
+the handshake, and the Akamai string from the HTTP/2 settings:
 
-|     | ours                                   | Chrome 133                             |
-| --- | -------------------------------------- | -------------------------------------- |
-| JA4 | `t13d1516h1_8daaf6152771_d8a2da3f94cd` | `t13d1516h2_8daaf6152771_d8a2da3f94cd` |
+| profile   | JA4                                    | Akamai                                                 |
+| --------- | -------------------------------------- | ------------------------------------------------------ |
+| `chrome`  | `t13d1516h2_8daaf6152771_d8a2da3f94cd` | `1:65536;2:0;4:6291456;6:262144\|15663105\|0\|m,a,s,p` |
+| `firefox` | `t13d1715h2_5b57614c22b0_a54fffd0eb61` | `1:65536;2:0;4:131072;5:16384\|12517377\|0\|m,p,a,s`   |
+| `safari`  | `t13d2013h2_a09f3c656075_7f0f34a4126d` | `2:0;3:100;4:2097152;8:1;9:1\|10485760\|0\|m,s,p,a`    |
 
-The `h1` is the one gap, and it is honest: Chrome offers `h2`, and advertising
-it before HTTP/2 exists here would fail the first handshake a server accepted
-it on. So HTTP/2 comes before the fingerprint can be complete.
+The three are deliberately unalike, which is the point: Chrome GREASEs and
+shuffles its extensions, Firefox does neither, Safari GREASEs but keeps a fixed
+order. Anything between those is expressible.
+
+Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
+string is right in every other field.
 
 A profile is data, not code — see `src/impersonate.ts`. Adding a browser means
 writing down what it sends, taken from
@@ -201,7 +209,8 @@ writing down what it sends, taken from
 
 ```ts
 const myBrowser: Impersonation = {
-  alpn: ['http/1.1'],
+  alpn: ['h2', 'http/1.1'],
+  http2: { settings: [...], windowUpdate: 15663105, pseudoHeaderOrder: ['m', 'a', 's', 'p'] },
   ciphers: [GREASE[0], 0x1301 /* ... */],
   signatureSchemes: [0x0403 /* ... */],
   greaseNamedGroup: true,
