@@ -166,7 +166,66 @@ export const firefox: Impersonation = {
   ],
 };
 
-export const profiles = { chrome, firefox } as const;
+/**
+ * Safari 26.3. Like Chrome it GREASEs, but it keeps a fixed extension order,
+ * and its signature algorithms really do list PSS-SHA384 twice.
+ */
+export const safari: Impersonation = {
+  alpn: ['http/1.1'],
+  ciphers: [
+    GREASE[0],
+    0x1302,
+    0x1303,
+    0x1301,
+    0xc02c,
+    0xc02b,
+    0xcca9,
+    0xc030,
+    0xc02f,
+    0xcca8,
+    0xc00a,
+    0xc009,
+    0xc014,
+    0xc013,
+    0x009d,
+    0x009c,
+    0x0035,
+    0x002f,
+    0xc008,
+    0xc012,
+    0x000a,
+  ],
+  signatureSchemes: [
+    0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0805, 0x0501, 0x0806, 0x0601, 0x0201,
+  ],
+  greaseNamedGroup: true,
+  extensionOrder: [
+    GREASE[0],
+    0x0000,
+    0x0017,
+    0xff01,
+    0x000a,
+    0x000b,
+    0x0010,
+    0x0005,
+    0x000d,
+    0x0012,
+    0x0033,
+    0x002d,
+    0x002b,
+    0x001b,
+    GREASE[1],
+  ],
+  extensions: () => [
+    [GREASE[0], bytes()],
+    [0xff01, bytes(0x00)], // renegotiation_info
+    [0x0012, bytes()], // signed_certificate_timestamp
+    [0x001b, bytes(0x02, 0x00, 0x01)], // compress_certificate: zlib
+    [GREASE[1], bytes(0x00)],
+  ],
+};
+
+export const profiles = { chrome, firefox, safari } as const;
 
 export type ProfileName = keyof typeof profiles;
 

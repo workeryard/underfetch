@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { chrome, encodeExtensions, firefox, type Impersonation } from '../src/impersonate';
+import { chrome, encodeExtensions, firefox, safari, type Impersonation } from '../src/impersonate';
 import { initSync, TlsClient } from '../rust-tls/pkg/underfetch_tls';
 
 /**
@@ -185,6 +185,18 @@ describe('the ClientHello', () => {
     expect(seen.extensions.filter(isGrease)).toHaveLength(0);
     // And it sends them in the order it was given, not shuffled.
     expect(seen.extensions.map(hex)).toEqual((firefox.extensionOrder ?? []).map(hex));
+  });
+
+  it('is Safari 26.3 when asked for Safari, GREASE and fixed order together', () => {
+    const seen = helloFor(safari);
+    const fingerprint = ja4(seen);
+
+    expect(fingerprint.counts).toBe('2013');
+    expect(fingerprint.ciphers).toBe('a09f3c656075');
+    expect(fingerprint.extensions).toBe('7f0f34a4126d');
+    // Safari GREASEs like Chrome but orders like Firefox.
+    expect(seen.extensions.filter(isGrease)).toHaveLength(2);
+    expect(seen.extensions.map(hex)).toEqual((safari.extensionOrder ?? []).map(hex));
   });
 
   it('sends no GREASE at all when no profile was asked for', () => {
