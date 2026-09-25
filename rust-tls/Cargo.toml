@@ -24,10 +24,14 @@ strip = true
 
 # rustc emits bulk-memory and saturating-float instructions by default, which
 # the wasm-opt wasm-pack ships rejects unless told they are allowed. `-all` says
-# they are; every engine that runs a Worker has supported them for years. The
-# gain is small — opt-level "z" and LTO already did the work — but it is free.
+# they are; every engine that runs a Worker has supported them for years.
+#
+# `-Os`, measured against the alternatives on 2026-09-25: 1 KB smaller gzipped
+# than `-O4`, and `-Oz` is no smaller once gzipped. Speed is the same for all
+# of them, and for opt-level 3 too — a handshake spends ~6.3 ms of CPU either
+# way, nearly all of it in ring's C — while opt-level 3 adds 96 KB gzipped.
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O4", "-all"]
+wasm-opt = ["-Os", "-all"]
 
 # A fork, because browser impersonation needs a ClientHello rustls will not
 # emit on its own: GREASE values and a cipher list we advertise beyond what we

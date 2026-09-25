@@ -47,7 +47,7 @@ if (opts.expectedServerHostname != kj::none) {
 An autogate is a switch Cloudflare flips centrally, so the option can stop
 working without any release of yours. It is off in `wrangler dev`, which is why
 local testing proves nothing. So the certificate is checked here instead, by
-rustls compiled to WebAssembly (616 KB, 290 KB gzipped, committed — building it
+rustls compiled to WebAssembly (613 KB, 289 KB gzipped, committed — building it
 needs Rust, using it does not).
 
 ## Install
