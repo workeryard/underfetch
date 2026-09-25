@@ -3,7 +3,7 @@
  * run bot checks, and WebSocket.
  */
 
-import { Session, type WorkerSessionDefaults } from '../../src/workers/index';
+import { Session, websocket, type WorkerSessionDefaults } from '../../src/workers/index';
 import { run, short, websocketKey, type Check, type Outcome } from './probe';
 
 /** HTTP/1.1 without TLS, which a profile's ALPN never reaches. */
@@ -162,24 +162,34 @@ export async function websocketCases(profile: WorkerSessionDefaults['impersonate
     }),
   );
 
+  const label = typeof profile === 'string' ? profile : 'no profile';
   out.push(
-    await run(
-      'websocket',
-      `underfetch Upgrade request (${typeof profile === 'string' ? profile : 'no profile'})`,
-      async () => {
-        const r = await new Session({ timeoutMs: 10_000, retry: false, impersonate: profile }).get(
-          url,
-          {
-            headers: upgrade,
-          },
-        );
-        const body = r.body ? (await r.text()).slice(0, 80) : '';
-        return [
-          r.status === 101,
-          `status ${r.status} upgrade=${r.headers.get('upgrade')} body=${short(body)}`,
-        ];
-      },
-    ),
+    await run('websocket', `underfetch echo, text and binary (${label})`, async () => {
+      const ws = await websocket('wss://echo.websocket.org/', {
+        impersonate: profile,
+        timeoutMs: 10_000,
+      });
+      // echo.websocket.org greets first, with the name of the server.
+      const greeting = await ws.recv();
+      await ws.send('ping-from-underfetch');
+      const text = await ws.recv();
+      await ws.send(new Uint8Array([1, 2, 3, 250]));
+      const binary = await ws.recv();
+      const big = 'x'.repeat(100_000);
+      await ws.send(big);
+      const echoedBig = await ws.recv();
+      const closed = await ws.close(1000, 'done');
+      const ok =
+        text?.type === 'text' &&
+        text.data === 'ping-from-underfetch' &&
+        binary?.type === 'binary' &&
+        [...binary.data].join() === '1,2,3,250' &&
+        echoedBig?.data === big;
+      return [
+        ok,
+        `greeting ${short(greeting?.data)}, text ${short(text?.data)}, 100 KB ${echoedBig?.data === big}, closed ${short(closed)}`,
+      ];
+    }),
   );
   return out;
 }

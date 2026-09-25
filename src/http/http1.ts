@@ -93,6 +93,14 @@ async function readHeaders(reader: ByteReader): Promise<Headers> {
   }
 }
 
+/** A response's status line and headers, leaving the reader at its body. */
+export async function readResponseHead(
+  reader: ByteReader,
+): Promise<{ status: number; statusText: string; headers: Headers }> {
+  const { status, statusText } = statusLine(await reader.line());
+  return { status, statusText, headers: await readHeaders(reader) };
+}
+
 /** RFC 9112 §7.1: size in hex, the bytes, CRLF, and a zero chunk to finish. */
 function chunkedBody(reader: ByteReader): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({

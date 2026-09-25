@@ -13,7 +13,9 @@ import {
   Session as PlainSession,
   type SessionDefaults,
   type SessionRequestInit,
+  type SessionWebSocketInit,
 } from '../client/session';
+import type { WebSocketConnection } from '../http/websocket';
 import { verifyProfile, type Verdict } from '../fingerprint/verify';
 import { acceptable, zlibDecoders, type ZlibModule } from '../http/decompress';
 import { impersonating } from '../tls/wasm';
@@ -125,6 +127,28 @@ export const patch = (url: string | URL, init?: WorkerRequestInit) => request('P
 export const del = (url: string | URL, init?: WorkerRequestInit) => request('DELETE', url, init);
 export const head = (url: string | URL, init?: WorkerRequestInit) => request('HEAD', url, init);
 
+export interface WorkerWebSocketInit extends SessionWebSocketInit {
+  /** Whose ClientHello and headers to open it with. */
+  impersonate?: ProfileName | Impersonation | undefined;
+}
+
+/**
+ * Opens a WebSocket without a session. `wss:` and `https:` mean the same.
+ *
+ * ```ts
+ * const ws = await websocket('wss://echo.example/', { impersonate: 'chrome' });
+ * await ws.send('hello');
+ * for await (const message of ws) console.log(message.data);
+ * ```
+ */
+export function websocket(
+  url: string | URL,
+  init: WorkerWebSocketInit = {},
+): Promise<WebSocketConnection> {
+  const { impersonate, ...rest } = init;
+  return new Session(impersonate ? { impersonate } : {}).websocket(url, rest);
+}
+
 /** The same as `get`, kept for callers that read better this way. */
 export function socketFetch(
   input: string | URL | Request,
@@ -157,5 +181,8 @@ export { profiles } from '../fingerprint/profiles';
 export { FingerprintError, fromFingerprints } from '../fingerprint/custom';
 export type { FromFingerprints } from '../fingerprint/custom';
 export type { Impersonation, ProfileName } from '../fingerprint/profiles';
-export type { SessionDefaults, SessionRequestInit } from '../client/session';
+export type { SessionDefaults, SessionRequestInit, SessionWebSocketInit } from '../client/session';
+export { WebSocketConnection, WebSocketError } from '../http/websocket';
+export type { WebSocketClose, WebSocketMessage } from '../http/websocket';
+export { WebSocketRefused } from '../client/websocket';
 export type { HttpProxy, Proxy, Socks5Proxy } from '../net/socket';

@@ -22,7 +22,16 @@ export type { BodyOptions, Params } from './client/request';
 export { withRetry } from './client/retry';
 export type { RetryOptions } from './client/retry';
 export { Session } from './client/session';
-export type { SessionDefaults, SessionOptions, SessionRequestInit } from './client/session';
+export type {
+  SessionDefaults,
+  SessionOptions,
+  SessionRequestInit,
+  SessionWebSocketInit,
+} from './client/session';
+export { connectWebSocket, WebSocketRefused } from './client/websocket';
+export type { WebSocketConnectOptions, WebSocketOptions } from './client/websocket';
+export { WebSocketConnection, WebSocketError } from './http/websocket';
+export type { WebSocketClose, WebSocketMessage } from './http/websocket';
 
 export { DEFAULT_PROFILE, http2Fetch } from './http/h2/connection';
 export type { Http2Profile } from './http/h2/connection';

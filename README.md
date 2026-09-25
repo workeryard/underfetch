@@ -181,6 +181,44 @@ Domain, path, `Secure`, `Max-Age` and `Expires` are all honoured, including a
 server deleting a cookie by dating it in the past. A cookie set partway through
 a redirect is picked up on the next hop.
 
+### WebSocket
+
+```ts
+const ws = await session.websocket('wss://stream.example.com/live', {
+  headers: { origin: 'https://example.com' },
+  protocols: ['graphql-ws'],
+});
+
+await ws.send(JSON.stringify({ subscribe: 'prices' }));
+for await (const message of ws) {
+  if (message.type === 'text') console.log(message.data);
+}
+console.log(ws.closed); // { code, reason }
+```
+
+It is read by asking, as impers has it: `recv()` gives the next message, or
+`null` once the connection has closed, and the socket is also an async
+iterator. Nothing runs unless something awaits it, which is what a Worker
+wants. Pings are answered as they pass, a close from the server is answered,
+and `close()` waits up to five seconds for the server to agree. A server that
+will not upgrade throws `WebSocketRefused` with its status and headers.
+
+It goes out as Chrome's does — on a connection of its own, with ALPN
+`http/1.1` alone, since HTTP/2 has no Upgrade — so the JA4 there ends `h1`
+where the page's ends `h2`, with both hashes the same. The session's proxy,
+cookies and headers come along, less those a browser sends only when it
+navigates (`accept`, `sec-fetch-*`, `sec-ch-ua*` and the like). The order
+is Chrome's, written from its known handshake rather than from a capture;
+`origin` is sent only when given.
+
+`permessage-deflate` is not offered, where Chrome offers it: a message
+compressed with the server's context carried over needs an inflater flushed
+at every message, which `DecompressionStream` cannot do. Servers send
+uncompressed instead.
+
+A message over `maxMessageBytes` (16 MiB by default) closes the connection
+with 1009, text that is not UTF-8 with 1007, and a broken frame with 1002.
+
 ### Retries
 
 Off the shelf, two extra attempts on 408, 429 and the 5xx that mean _later_,
@@ -231,6 +269,7 @@ different TLS stack means implementing six methods.
 | Cookies, with domain and path scoping            | yes                            |
 | Retries, idempotent methods only by default      | yes                            |
 | Basic, Bearer and Digest authentication          | yes, Digest in MD5 and SHA-256 |
+| WebSocket, over its own `http/1.1` connection    | yes, without compression       |
 | HTTP/3                                           | never — a Worker has no UDP    |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is

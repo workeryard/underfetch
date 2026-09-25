@@ -16,6 +16,8 @@ import { proxyFetch } from './fetch';
 import { followRedirects, type RedirectOptions } from './redirects';
 import { buildRequest, type BodyOptions } from './request';
 import { withRetry, type RetryOptions } from './retry';
+import { connectWebSocket, type WebSocketOptions } from './websocket';
+import type { WebSocketConnection } from '../http/websocket';
 
 export interface SessionDefaults extends RedirectOptions {
   /** Prefixed to a path, so callers can ask for `/v1/models`. */
@@ -46,6 +48,17 @@ export interface SessionOptions extends SessionDefaults {
   /** Decoders beyond gzip and deflate; the runtime supplies these. */
   decoders?: Decoders | undefined;
 }
+
+export interface SessionWebSocketInit extends WebSocketOptions {
+  /** Overrides the session's proxy. `null` forces this one direct. */
+  proxy?: Proxy | null | undefined;
+}
+
+/**
+ * What a browser sends only when it navigates, and not on a WebSocket's
+ * Upgrade: a profile's headers are a page load's, so these stay behind.
+ */
+const NAVIGATION_ONLY = /^(sec-fetch-|sec-ch-ua|accept$|upgrade-insecure-requests$|priority$)/;
 
 export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOptions {
   /** Overrides the session's proxy. `null` forces this one request direct. */
@@ -161,6 +174,40 @@ export class Session {
 
     const retry = streamed ? false : (init?.retry ?? this.#defaults.retry ?? {});
     return withRetry(outgoing, followed, retry);
+  }
+
+  /**
+   * Opens a WebSocket with the session's proxy, headers and cookies, over a
+   * connection of its own — as a browser opens one, with ALPN `http/1.1`.
+   */
+  async websocket(
+    url: string | URL,
+    init: SessionWebSocketInit = {},
+  ): Promise<WebSocketConnection> {
+    const target = new URL(url, this.#defaults.baseUrl);
+    const headers = new Headers(init.headers);
+    for (const [name, value] of new Headers(this.#defaults.headers)) {
+      if (!headers.has(name) && !NAVIGATION_ONLY.test(name)) headers.set(name, value);
+    }
+    // Cookies are scoped by the http(s) URL the ws(s) one stands for.
+    const cookieUrl = new URL(target);
+    cookieUrl.protocol =
+      target.protocol === 'ws:' || target.protocol === 'http:' ? 'http:' : 'https:';
+    const held = this.#jar?.header(cookieUrl) ?? null;
+    if (held !== null && !headers.has('cookie')) headers.set('cookie', held);
+
+    const proxy = init.proxy === undefined ? this.#defaults.proxy : (init.proxy ?? undefined);
+    const timeoutMs = init.timeoutMs ?? this.#defaults.timeoutMs;
+    const { socket, headers: answer } = await connectWebSocket(target, {
+      ...init,
+      headers,
+      dial: this.#dial,
+      tls: this.#tls,
+      ...(proxy ? { proxy } : { proxy: undefined }),
+      timeoutMs,
+    });
+    this.#jar?.store(cookieUrl, answer.getSetCookie());
+    return socket;
   }
 
   get(url: string | URL, init?: SessionRequestInit): Promise<Response> {
