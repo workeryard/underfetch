@@ -4,6 +4,10 @@ HTTP over raw sockets for Cloudflare Workers: SOCKS5, SOCKS4 and HTTP(S)
 `CONNECT` proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look
 like Chrome, Firefox or Safari.
 
+It is built for leaving **through a proxy**, and that is where all of it works.
+Without one it reaches any site not served through Cloudflare; a site that is
+cannot be reached from a Worker's socket at all — see below.
+
 ```ts
 import { Session } from 'underfetch/workers';
 
@@ -33,8 +37,25 @@ included. Such a request fails at once with a `DialError` that says so, and is
 not retried; through a proxy it works, since the socket then goes to the
 proxy. `wrangler dev` does not enforce the block, so only a deployment shows
 it. Measured from a deployed Worker on 2026-09-25: every case in the live
-matrix passes but the seven whose target is on Cloudflare, and `example.com`,
-for one, loads through a SOCKS5 proxy.
+matrix passes but the seven whose target is on Cloudflare. Through free
+public proxies, the ones still alive reached `example.com` as often as they
+reached a site elsewhere.
+
+Without a proxy, such a site can still be reached, just not by underfetch:
+
+```ts
+const session = new Session({ impersonate: 'chrome', onCloudflare: 'fetch' });
+const response = await session.get('https://example.com/');
+response.headers.get('x-underfetch-via'); // 'fallback'
+```
+
+`onCloudflare: 'fetch'` sends a request refused this way through the Worker's
+own `fetch()`. It arrives, with the profile's headers, but over Cloudflare's
+TLS rather than the profile's, with Cloudflare's own headers added, and with
+`accept-encoding` rewritten to `gzip, br` — so its answer says
+`x-underfetch-via: fallback`, and nothing claims it was impersonated. Redirects
+and cookies still go through the session. It is off by default, a WebSocket is
+never sent this way, and with a proxy it never happens.
 
 Two more limits come from the platform rather than from here. Each connection
 counts against the subrequests one invocation may make — a redirect, a retry,

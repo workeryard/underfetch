@@ -263,13 +263,22 @@ export default {
           timeoutMs: 20_000,
           ...(as ? { impersonate: as } : {}),
           ...(proxy ? { proxy } : {}),
+          ...(query.get('onCloudflare') === 'fetch' ? { onCloudflare: 'fetch' as const } : {}),
         }).fetch(url, {
           resource: (query.get('resource') ?? 'document') as Resource,
+          ...(query.get('method') ? { method: query.get('method')! } : {}),
+          ...(query.get('json') ? { json: JSON.parse(query.get('json')!) as unknown } : {}),
         });
       } catch (error) {
-        const e = error as Error;
+        const e = error as Error & { permanent?: boolean };
         return Response.json(
-          { status: 0, elapsedMs: Date.now() - started, error: `${e.name}: ${e.message}` },
+          {
+            status: 0,
+            elapsedMs: Date.now() - started,
+            error: `${e.name}: ${e.message}`,
+            permanent: e.permanent ?? null,
+            stack: e.stack?.split('\n').slice(0, 8),
+          },
           { status: 502 },
         );
       }

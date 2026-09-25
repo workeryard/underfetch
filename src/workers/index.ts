@@ -114,6 +114,36 @@ export interface WorkerSessionDefaults extends SessionDefaults {
    * to this session alone. Default: true.
    */
   tlsResumption?: boolean | undefined;
+  /**
+   * A Worker may not open a socket to Cloudflare's own addresses, so a site
+   * behind Cloudflare cannot be reached without a proxy. `'error'`, the
+   * default, fails with a `DialError` saying so. `'fetch'` sends such a
+   * request through the Worker's own fetch() instead: it arrives, but with
+   * Cloudflare's TLS rather than the profile's and Cloudflare's headers
+   * added, and its answer carries `x-underfetch-via: fallback`. WebSockets
+   * are not covered.
+   */
+  onCloudflare?: 'error' | 'fetch' | undefined;
+}
+
+/**
+ * The Worker's own fetch, for `onCloudflare: 'fetch'`. It undoes gzip and
+ * brotli itself yet leaves `content-encoding` on the answer (seen on
+ * 2026-09-25), which would send a caller decoding twice; so the header goes,
+ * and `content-length` with it, since it counts the encoded bytes. Redirects
+ * stay the session's to follow, hop by hop, cookies and all.
+ */
+async function platformFetch(request: Request): Promise<Response> {
+  const response = await fetch(request, { redirect: 'manual' });
+  if (!response.headers.has('content-encoding')) return response;
+  const headers = new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**
@@ -130,7 +160,12 @@ export class Session extends PlainSession {
   readonly #name: string | undefined;
   readonly #tickets: TicketStore | undefined;
 
-  constructor({ impersonate, tlsResumption = true, ...defaults }: WorkerSessionDefaults = {}) {
+  constructor({
+    impersonate,
+    tlsResumption = true,
+    onCloudflare = 'error',
+    ...defaults
+  }: WorkerSessionDefaults = {}) {
     const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
     const tickets = tlsResumption ? ticketStore() : undefined;
     super({
@@ -141,6 +176,7 @@ export class Session extends PlainSession {
       // A browser's headers travel with its handshake. The session's own win
       // over the profile's, and a request's win over both.
       impersonate: as,
+      ...(onCloudflare === 'fetch' ? { fallback: platformFetch } : {}),
       ...defaults,
     });
     this.#as = as;

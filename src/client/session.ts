@@ -66,6 +66,13 @@ export interface SessionOptions extends SessionDefaults {
   decoders?: Decoders | undefined;
   /** Reads permessage-deflate on a WebSocket; the runtime supplies it. */
   inflater?: InflaterFactory | undefined;
+  /**
+   * What to send a request through when its connection is refused for good
+   * and no proxy is in the way — the runtime's own fetch, say, for a target
+   * the platform will not let a socket reach. Its answers are marked
+   * `x-underfetch-via: fallback`: nothing of the profile's TLS went with them.
+   */
+  fallback?: ((request: Request) => Promise<Response>) | undefined;
 }
 
 export interface SessionWebSocketInit extends WebSocketOptions {
@@ -97,6 +104,19 @@ export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOp
   site?: FetchSite | undefined;
 }
 
+/** An answer that did not come over our own connection, saying so. */
+function marked(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('x-underfetch-via', 'fallback');
+  const out = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+  Object.defineProperty(out, 'url', { value: response.url, configurable: true });
+  return out;
+}
+
 /**
  * The request's headers, then the session's, then the browser's: each fills
  * only what the ones before it left unset.
@@ -119,16 +139,27 @@ export class Session {
   readonly #profile: Impersonation | undefined;
   readonly #decoders: Decoders | undefined;
   readonly #inflater: InflaterFactory | undefined;
+  readonly #fallback: ((request: Request) => Promise<Response>) | undefined;
   readonly #defaults: SessionDefaults;
   readonly #jar: CookieJar | undefined;
 
-  constructor({ dial, tls, http2, impersonate, decoders, inflater, ...defaults }: SessionOptions) {
+  constructor({
+    dial,
+    tls,
+    http2,
+    impersonate,
+    decoders,
+    inflater,
+    fallback,
+    ...defaults
+  }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
     this.#http2 = impersonate?.http2 ?? http2;
     this.#profile = impersonate;
     this.#decoders = decoders;
     this.#inflater = inflater;
+    this.#fallback = fallback;
     this.#defaults = defaults;
     this.#jar =
       defaults.cookies === true
@@ -193,7 +224,7 @@ export class Session {
     const timeoutMs = init?.timeoutMs ?? this.#defaults.timeoutMs;
     const connectTimeoutMs = init?.connectTimeoutMs ?? this.#defaults.connectTimeoutMs;
 
-    const once = (one: Request) =>
+    const direct = (one: Request) =>
       fetchOver(one, {
         dial: this.#dial,
         tls: this.#tls,
@@ -206,6 +237,23 @@ export class Session {
         ...(init?.signal ? { signal: init.signal } : {}),
         ...(streamed ? { streamBody: true } : {}),
       });
+    // A refusal that is final, with no proxy to go around it, goes to the
+    // fallback when there is one. The dial failed, so nothing was sent yet.
+    const fallback = this.#fallback;
+    const once =
+      fallback === undefined || proxy !== undefined
+        ? direct
+        : async (one: Request) => {
+            const spare = one.bodyUsed || streamed ? null : one.clone();
+            try {
+              return await direct(one);
+            } catch (error) {
+              if (spare === null || (error as { permanent?: unknown } | null)?.permanent !== true) {
+                throw error;
+              }
+              return marked(await fallback(spare));
+            }
+          };
 
     // Cookies belong around a single hop, so a redirect both sends what it
     // should and keeps whatever it is handed on the way.
