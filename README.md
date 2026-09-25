@@ -369,8 +369,10 @@ settings come from curl-impersonate's own target table. Three impers targets
 are missing — `chrome145`, `chrome146` and `firefox147` — because no capture
 of them has been published.
 
-Firefox also sends PRIORITY frames, which are not reproduced — its Akamai
-string is right in every other field.
+None of the captured browsers sends PRIORITY frames — the Firefox captures
+begin at 133, and its Akamai priority field is `0` like the rest — so every
+Akamai string matches whole. An older Firefox's string that names some is refused
+by `fromFingerprints` below rather than sent without them.
 
 A browser that is not built in can be taken from the two strings
 [tls.peet.ws/api/all](https://tls.peet.ws/api/all) shows when opened in it —
