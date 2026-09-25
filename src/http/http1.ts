@@ -9,6 +9,7 @@
 
 import { ByteReader, ByteWriter } from '../net/bytes';
 import { decompressed, defaultAcceptEncoding, type Decoders } from './decompress';
+import { USER_AGENT } from './user-agent';
 
 const CRLF = '\r\n';
 const BODY_CHUNK = 16_384;
@@ -51,6 +52,7 @@ function requestHead(
 ): string {
   const path = `${url.pathname}${url.search}`;
   const lines = [`${method} ${path} HTTP/1.1`, `Host: ${url.host}`];
+  if (!headers.has('user-agent')) lines.push(`User-Agent: ${USER_AGENT}`);
   for (const [name, value] of headers) {
     if (hopByHop(name)) continue;
     if (name.toLowerCase() === 'host' || name.toLowerCase() === 'content-length') continue;

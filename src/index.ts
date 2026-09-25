@@ -30,6 +30,7 @@ export { Http2Error } from './http/h2/frames';
 export { Http1Error, http1Fetch } from './http/http1';
 export { acceptable, decompressed, zlibDecoders } from './http/decompress';
 export type { Decoders, ZlibModule } from './http/decompress';
+export { USER_AGENT } from './http/user-agent';
 
 export { TlsError, tlsTunnel } from './tls/tunnel';
 export type { TlsFactory, TlsSession } from './tls/tunnel';

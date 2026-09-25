@@ -62,6 +62,22 @@ describe('http1', () => {
     expect(await response.text()).toBe('hi');
   });
 
+  it('names itself when nobody set a user-agent', async () => {
+    const { socket, sent } = fakeServer(OK);
+    await http1Fetch(socket, new Request('https://example.com/'));
+    expect(sent()).toContain('User-Agent: underfetch/0.1\r\n');
+  });
+
+  it("sends the caller's user-agent and not its own", async () => {
+    const { socket, sent } = fakeServer(OK);
+    await http1Fetch(
+      socket,
+      new Request('https://example.com/', { headers: { 'user-agent': 'my-worker/1.0' } }),
+    );
+    expect(sent()).toContain('user-agent: my-worker/1.0\r\n');
+    expect(sent()).not.toContain('underfetch');
+  });
+
   it('decodes a chunked body and drops the framing headers', async () => {
     const { socket } = fakeServer(
       'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n',

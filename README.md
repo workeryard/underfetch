@@ -352,7 +352,10 @@ library would have added but the profile does not name are dropped, because a
 browser sends what it sends and nothing more. Only what the standard requires
 last — PSK and ECH — survives regardless.
 
-Given no profile, nothing is impersonated and no GREASE is sent.
+Given no profile, nothing is impersonated and no GREASE is sent. A request
+that sets no `user-agent` then says `underfetch/0.1`, the way curl names
+itself: impers and curl_cffi send none at all, but Reddit, Wikipedia and
+ChatGPT all answer a request without one with 403.
 
 ## Proving it
 

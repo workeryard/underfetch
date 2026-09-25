@@ -13,6 +13,7 @@
 
 import { ByteReader, ByteWriter } from '../../net/bytes';
 import { decompressed, type Decoders } from '../decompress';
+import { USER_AGENT } from '../user-agent';
 import { Hpack, type Header } from './hpack';
 import {
   encodeFrame,
@@ -86,6 +87,7 @@ const FORBIDDEN = ['connection', 'keep-alive', 'proxy-connection', 'transfer-enc
 
 function requestHeaders(request: Request, url: URL, profile: Http2Profile): Header[] {
   const headers = pseudoHeaders(request, url, profile.pseudoHeaderOrder);
+  if (!request.headers.has('user-agent')) headers.push(['user-agent', USER_AGENT]);
   for (const [name, value] of request.headers) {
     const lower = name.toLowerCase();
     if (FORBIDDEN.includes(lower) || lower === 'host') continue;

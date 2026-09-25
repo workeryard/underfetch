@@ -117,6 +117,19 @@ describe('http2', () => {
     expect(decoded).toContainEqual(['authorization', 'Bearer sk']);
   });
 
+  it('names itself when nobody set a user-agent, and only then', async () => {
+    const sentHeaders = async (init?: RequestInit) => {
+      const { socket, written } = socketOf([SETTINGS, OK, data('{}')]);
+      await (await http2Fetch(socket, new Request('https://example.com/', init))).text();
+      const block = framesIn(written).find((f) => f.type === FrameType.Headers);
+      return new Hpack().decode(block!.payload).filter(([name]) => name === 'user-agent');
+    };
+    expect(await sentHeaders()).toEqual([['user-agent', 'underfetch/0.1']]);
+    expect(await sentHeaders({ headers: { 'user-agent': 'my-worker/1.0' } })).toEqual([
+      ['user-agent', 'my-worker/1.0'],
+    ]);
+  });
+
   it('acknowledges the server settings', async () => {
     const { socket, written } = socketOf([SETTINGS, OK, data('{}')]);
     await (await http2Fetch(socket, new Request('https://example.com/'))).text();
