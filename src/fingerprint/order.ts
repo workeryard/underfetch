@@ -7,12 +7,14 @@
  * which no browser does and a bot check can read at a glance.
  *
  * Measured on 2026-09-25 with the browsers themselves, not taken from any
- * library: Edge 153 (Chromium) and Firefox 153 on Windows, pointed at a local
+ * library: Edge 153 and Firefox 153 on Windows, pointed at a local
  * HTTP/2 server that recorded every request's raw header order and stream
  * weight — a navigation, a form POST, fetch() GET and POST, XHR, a CORS
  * preflight, `cache: 'no-store'`, and requests carrying authorization and
  * other headers of the page's own. Each navigation order agrees with the
- * captures the profiles were built from. There is no Safari measurement.
+ * captures the profiles were built from. Chrome 154, measured after, wrote
+ * every request exactly as Edge 153 did, a page's own headers included; so
+ * did Brave, which adds only `sec-gpc`. There is no Safari measurement.
  *
  * `*` marks where headers the table does not name go, alphabetically — the
  * caller's own, such as `authorization`. Firefox puts a page's own headers

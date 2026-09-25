@@ -377,10 +377,11 @@ profile's, and take the slot the browser gives them: `content-length`,
 that browser puts them. (`Headers` sorts its names, so this has to be done on
 the wire; until it was, every request went out alphabetically.)
 
-The orders were measured, not written from memory: Edge 153 and Firefox 153
-pointed at a local HTTP/2 server that recorded every request's raw header
+The orders were measured, not written from memory: Edge 153, Chrome 154 and
+Firefox 153 pointed at a local HTTP/2 server that recorded every request's raw header
 order and stream weight (`scripts/capture-headers.ts`). Each navigation order
-agrees with the capture the profiles came from. Two limits. Chromium lays out
+agrees with the capture the profiles came from, and Chrome 154 wrote every
+request exactly as Edge 153 did. Two limits. Chromium lays out
 a page's own headers — `authorization`, `x-api-key` — through a hash table, so
 their slot moves with how many there are; one fixed slot, the one most took,
 stands in for that. And no Safari has been measured beyond its page load, so a
