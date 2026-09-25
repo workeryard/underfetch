@@ -52,8 +52,10 @@ needs Rust, using it does not).
 
 ## Install
 
+It is not on npm yet. Depend on a checkout instead:
+
 ```
-npm install underfetch
+pnpm add link:../underfetch
 ```
 
 Your `wrangler.jsonc` needs the WebAssembly rule:
@@ -218,7 +220,7 @@ different TLS stack means implementing six methods.
 | Timeouts and `AbortSignal`                       | yes                         |
 | Redirects, with credentials dropped across hosts | yes                         |
 | HTTP/2, with HPACK and flow control              | yes                         |
-| Browser impersonation, TLS and HTTP/2            | 16 browsers, see below      |
+| Browser impersonation, TLS and HTTP/2            | 35 browsers, see below      |
 | Cookies, with domain and path scoping            | yes                         |
 | Retries, idempotent methods only by default      | yes                         |
 | HTTP/3                                           | never — a Worker has no UDP |
