@@ -72,8 +72,8 @@ export {
 } from './fingerprint/order';
 export { blinkHash, blinkTableOrder } from './fingerprint/blink-order';
 export type { Family, FetchSite, Resource } from './fingerprint/order';
-export { FingerprintError, fromFingerprints } from './fingerprint/custom';
-export type { FromFingerprints } from './fingerprint/custom';
+export { FingerprintError, withFingerprints } from './fingerprint/custom';
+export type { Fingerprints } from './fingerprint/custom';
 export type { Extension, Impersonation, ProfileName } from './fingerprint/profiles';
 export {
   akamai,

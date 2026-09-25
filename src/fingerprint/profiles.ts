@@ -82,7 +82,11 @@ export interface Impersonation {
    * of quietly impersonating nobody.
    */
   expected: {
-    ja4: string;
+    /**
+     * Left out for a profile built from a JA3 string, which is judged by that
+     * string instead: a JA4 computed from it would only restate it.
+     */
+    ja4?: string | undefined;
     akamai: string;
     /** Only where the order is fixed: a shuffled hello has a new JA3 each time. */
     ja3?: string | undefined;

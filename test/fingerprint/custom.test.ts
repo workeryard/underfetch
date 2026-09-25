@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { FingerprintError, fromFingerprints } from '../../src/fingerprint/custom';
+import { FingerprintError, withFingerprints } from '../../src/fingerprint/custom';
 import { encodeExtensions, profiles, type Impersonation } from '../../src/fingerprint/profiles';
-import { ja3, parseClientHello, verifyProfile } from '../../src/fingerprint/verify';
+import { ja3, ja4, parseClientHello, verifyProfile } from '../../src/fingerprint/verify';
 import { initSync, TlsClient } from '../../rust-tls/pkg/underfetch_tls';
 
 /**
@@ -40,9 +40,9 @@ const FIREFOX_144 = {
   akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s',
 };
 
-describe('fromFingerprints', () => {
+describe('withFingerprints', () => {
   it("sends Chrome 150's JA3 exactly, its post-quantum group included", async () => {
-    const as = await fromFingerprints(CHROME_150, profiles.chrome150);
+    const as = withFingerprints(profiles.chrome150, CHROME_150);
     const sent = ja3(parseClientHello(hello(as)));
 
     expect(sent).toBe(CHROME_150.ja3);
@@ -51,7 +51,7 @@ describe('fromFingerprints', () => {
   });
 
   it('builds Firefox from its strings on a Chrome base, borrowing only what they lack', async () => {
-    const as = await fromFingerprints(FIREFOX_144, profiles.chrome150);
+    const as = withFingerprints(profiles.chrome150, FIREFOX_144);
     const sent = parseClientHello(hello(as));
 
     expect(ja3(sent)).toBe(FIREFOX_144.ja3);
@@ -63,29 +63,33 @@ describe('fromFingerprints', () => {
     expect((await verifyProfile('firefox', as, hello(as))).ok).toBe(true);
   });
 
-  it('matches JA4 but states no JA3 when asked to shuffle, as Chrome does', async () => {
-    const as = await fromFingerprints({ ...CHROME_150, shuffle: true }, profiles.chrome150);
+  it("shuffles as Chrome does when asked, keeping Chrome 150's JA4 and claiming no JA3", async () => {
+    const as = withFingerprints(profiles.chrome150, { ...CHROME_150, shuffle: true });
     expect(as.extensionOrder).toBeUndefined();
     expect(as.expected.ja3).toBeUndefined();
-    expect((await verifyProfile('shuffled', as, hello(as))).ja4.ok).toBe(true);
+    expect(await ja4(parseClientHello(hello(as)))).toBe(profiles.chrome150.expected.ja4);
   });
 
-  it('refuses what it cannot send, and says what', async () => {
+  it('changes only the HTTP/2 side given an Akamai string alone', () => {
+    const akamai = '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p';
+    const as = withFingerprints(profiles.chrome131, { akamai });
+    expect(as.expected.akamai).toBe(akamai);
+    expect(as.expected.ja4).toBe(profiles.chrome131.expected.ja4);
+    expect(as.ciphers).toEqual(profiles.chrome131.ciphers);
+  });
+
+  it('refuses what it cannot send, and says what', () => {
     const withUnknown = { ...CHROME_150, ja3: CHROME_150.ja3.replace('-0,', '-0-49,') };
-    await expect(fromFingerprints(withUnknown, profiles.chrome150)).rejects.toThrow(
+    expect(() => withFingerprints(profiles.chrome150, withUnknown)).toThrow(
       /cannot send extension 49/,
     );
 
     const withPriority = { ...FIREFOX_144, akamai: '1:65536|12517377|3:0:0:201|m,p,a,s' };
-    await expect(fromFingerprints(withPriority, profiles.firefox144)).rejects.toThrow(
-      FingerprintError,
-    );
+    expect(() => withFingerprints(profiles.firefox144, withPriority)).toThrow(FingerprintError);
 
     const noX25519 = { ...CHROME_150, ja3: CHROME_150.ja3.replace('4588-29-23-24', '23-24') };
-    await expect(fromFingerprints(noX25519, profiles.chrome150)).rejects.toThrow(/X25519/);
+    expect(() => withFingerprints(profiles.chrome150, noX25519)).toThrow(/X25519/);
 
-    await expect(
-      fromFingerprints({ ja3: 'nonsense', akamai: '' }, profiles.chrome),
-    ).rejects.toThrow(FingerprintError);
+    expect(() => withFingerprints(profiles.chrome, { ja3: 'nonsense' })).toThrow(FingerprintError);
   });
 });

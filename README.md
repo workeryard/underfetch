@@ -502,7 +502,7 @@ of them has been published.
 None of the captured browsers sends PRIORITY frames — the Firefox captures
 begin at 133, and its Akamai priority field is `0` like the rest — so every
 Akamai string matches whole. An older Firefox's string that names some is refused
-by `fromFingerprints` below rather than sent without them.
+below rather than sent without them.
 
 A browser that is not built in can be taken from the two strings
 [tls.peet.ws/api/all](https://tls.peet.ws/api/all) shows when opened in it —
@@ -511,21 +511,23 @@ algorithms, the headers or the bodies of extensions such as ALPS, so those come
 from a built-in profile of the same family:
 
 ```ts
-import { fromFingerprints, profiles, Session } from 'underfetch/workers';
-
-const edge = await fromFingerprints(
-  { ja3: '771,4865-4866-…,0', akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p' },
-  profiles.chrome,
-);
-new Session({ impersonate: edge });
+new Session({
+  impersonate: 'chrome', // what the strings do not say
+  ja3: '771,4865-4866-…,0',
+  akamai: '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p',
+});
 ```
 
-The JA3 then goes out exactly as given — less Kyber's draft group, should an
-old Chrome's string name it — and `expected.ja3` says what that is. Anything the strings
-ask for that cannot be sent — an extension the TLS module does not know, or
-Firefox's old PRIORITY frames — is refused with a `FingerprintError` naming
-it, rather than dropped. JA3 records one extension order; Chrome shuffles on
-every connection, which `shuffle: true` does too.
+Either string may come alone: `akamai` by itself changes only the HTTP/2
+opening and keeps the profile's TLS, JA4 and all. The JA3 goes out exactly as
+given — less Kyber's draft group, should an old Chrome's string name it.
+Anything the strings ask for that cannot be sent — an extension the TLS module
+does not know, or Firefox's old PRIORITY frames — throws a `FingerprintError`
+naming it when the session is made, rather than being dropped. JA3 records one
+extension order; Chrome shuffles on every connection, which `shuffle: true`
+does too. A saved session remembers the strings and rebuilds the profile on
+its own. Outside a Worker, `withFingerprints(profile, { ja3, akamai })` from
+`underfetch` makes the same profile.
 
 A profile of your own is the same shape, written by hand:
 

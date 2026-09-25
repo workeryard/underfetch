@@ -3,8 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CookieJar } from '../../src/client/cookies';
 import { profiles } from '../../src/fingerprint/profiles';
+import { withFingerprints } from '../../src/fingerprint/custom';
 import {
   fromBase64,
+  identityOf,
   readState,
   restoredProfile,
   SessionStateError,
@@ -74,6 +76,26 @@ describe('restoredProfile', () => {
   it('keeps a session saved without a profile without one', () => {
     expect(restoredProfile(null, undefined, named)).toBeUndefined();
     expect(() => restoredProfile(null, profiles.chrome, named)).toThrow(/without one/);
+  });
+});
+
+describe('a profile built from strings', () => {
+  const input = { akamai: '1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s' };
+  const custom = withFingerprints(profiles.chrome150, input);
+  const saved = identityOf(custom, 'chrome150', input);
+
+  it('comes back by itself from what the state recorded', () => {
+    const back = restoredProfile(saved, undefined, named);
+    expect(back?.expected).toEqual(custom.expected);
+  });
+
+  it('is refused under the plain profile it was built on', () => {
+    expect(() => restoredProfile(saved, profiles.chrome150, named)).toThrow(/akamai/);
+  });
+
+  it('still reads an older state, which recorded a name and a JA4', () => {
+    const old = { name: 'chrome', ja4: profiles.chrome.expected.ja4 };
+    expect(restoredProfile(old, undefined, named)).toBe(profiles.chrome);
   });
 });
 

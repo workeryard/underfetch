@@ -22,8 +22,10 @@ import { zlibInflater, type InflateModule } from '../http/permessage-deflate';
 import { impersonating, ticketStore } from '../tls/wasm';
 import type { TicketStore } from '../../rust-tls/pkg/underfetch_tls';
 import { CookieJar } from '../client/cookies';
+import { FingerprintError, withFingerprints, type Fingerprints } from '../fingerprint/custom';
 import {
   fromBase64,
+  identityOf,
   readState,
   restoredProfile,
   SessionStateError,
@@ -109,6 +111,19 @@ export interface WorkerSessionDefaults extends SessionDefaults {
    */
   impersonate?: ProfileName | Impersonation | undefined;
   /**
+   * A JA3 string to send instead of the profile's own, as tls.peet.ws shows
+   * it for a browser. What it does not say — signature algorithms, headers,
+   * extension bodies — still comes from `impersonate`, which it needs.
+   */
+  ja3?: string | undefined;
+  /** An Akamai HTTP/2 string to send instead of the profile's own. */
+  akamai?: string | undefined;
+  /**
+   * With `ja3`: shuffle its extensions on every connection, as Chrome does,
+   * rather than keep the one order a JA3 string records. Default: false.
+   */
+  shuffle?: boolean | undefined;
+  /**
    * Resume TLS sessions: a second connection to a host carries the ticket
    * the first was given, as a returning browser's does. The tickets belong
    * to this session alone. Default: true.
@@ -155,18 +170,51 @@ async function platformFetch(request: Request): Promise<Response> {
  * const response = await session.fetch('https://api.example.com/v1/models');
  * ```
  */
+/** The profile `impersonate`, `ja3` and `akamai` describe together. */
+function profileFor(
+  impersonate: ProfileName | Impersonation | undefined,
+  input: Fingerprints | undefined,
+): Impersonation | undefined {
+  const base = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
+  if (typeof impersonate === 'string' && base === undefined) {
+    throw new FingerprintError(`no built-in profile is called ${impersonate}`);
+  }
+  if (input === undefined) return base;
+  if (base === undefined) {
+    throw new FingerprintError(
+      'ja3 and akamai change a profile, so they need one to start from: say `impersonate` too',
+    );
+  }
+  return withFingerprints(base, input);
+}
+
+/** The strings given, or nothing when none were. */
+function inputOf({ ja3, akamai, shuffle }: WorkerSessionDefaults): Fingerprints | undefined {
+  if (ja3 === undefined && akamai === undefined) return undefined;
+  return {
+    ...(ja3 === undefined ? {} : { ja3 }),
+    ...(akamai === undefined ? {} : { akamai }),
+    ...(shuffle ? { shuffle } : {}),
+  };
+}
+
 export class Session extends PlainSession {
   readonly #as: Impersonation | undefined;
   readonly #name: string | undefined;
+  readonly #input: Fingerprints | undefined;
   readonly #tickets: TicketStore | undefined;
 
   constructor({
     impersonate,
+    ja3,
+    akamai,
+    shuffle,
     tlsResumption = true,
     onCloudflare = 'error',
     ...defaults
   }: WorkerSessionDefaults = {}) {
-    const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
+    const input = inputOf({ ja3, akamai, shuffle });
+    const as = profileFor(impersonate, input);
     const tickets = tlsResumption ? ticketStore() : undefined;
     super({
       dial,
@@ -181,6 +229,7 @@ export class Session extends PlainSession {
     });
     this.#as = as;
     this.#name = typeof impersonate === 'string' ? impersonate : undefined;
+    this.#input = input;
     this.#tickets = tickets;
   }
 
@@ -194,9 +243,7 @@ export class Session extends PlainSession {
     return {
       version: STATE_VERSION,
       savedAt: Date.now(),
-      impersonate: this.#as
-        ? { ...(this.#name ? { name: this.#name } : {}), ja4: this.#as.expected.ja4 }
-        : null,
+      impersonate: this.#as ? identityOf(this.#as, this.#name, this.#input) : null,
       cookies: this.cookies?.all() ?? null,
       tickets: this.#tickets ? toBase64(this.#tickets.export()) : '',
     };
@@ -210,30 +257,32 @@ export class Session extends PlainSession {
   /**
    * A session carrying on from a saved one, in this isolate or any other.
    * The proxy, timeouts and headers are not saved and come from `options`.
-   * A state saved as one browser is refused as another, and one saved with
-   * a profile of your own needs that profile passed again.
+   * The profile comes back by itself, `ja3` and `akamai` included, unless
+   * it was one of your own; either way a state saved as one browser is
+   * refused as another.
    */
   static unmarshal(saved: SessionState | string, options: WorkerSessionDefaults = {}): Session {
     const state = readState(saved);
-    const { impersonate } = options;
-    const given = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
-    if (typeof impersonate === 'string' && given === undefined) {
-      throw new SessionStateError(`no built-in profile is called ${impersonate}`);
-    }
-    const profile = restoredProfile(
-      state.impersonate,
-      given,
-      (name) => profiles[name as ProfileName],
-    );
+    const givenInput = inputOf(options);
+    const given =
+      options.impersonate === undefined && givenInput === undefined
+        ? undefined
+        : profileFor(options.impersonate, givenInput);
+    restoredProfile(state.impersonate, given, (name) => profiles[name as ProfileName]);
 
     let cookies = options.cookies;
     if (state.cookies !== null && cookies !== false) {
       if (!(cookies instanceof CookieJar)) cookies = new CookieJar();
       cookies.add(state.cookies);
     }
+    // Given nothing, it is rebuilt from what the state recorded; the check
+    // above has made sure that is the same browser.
+    const identity = state.impersonate;
     const session = new Session({
       ...options,
-      impersonate: given ?? (state.impersonate?.name as ProfileName | undefined) ?? profile,
+      ...(given === undefined && identity !== null
+        ? { impersonate: identity.name as ProfileName, ...identity.input }
+        : {}),
       ...(cookies === undefined ? {} : { cookies }),
     });
     if (state.tickets !== '' && session.#tickets) {
@@ -259,14 +308,14 @@ export function request(
   input: string | URL,
   init?: WorkerRequestInit,
 ): Promise<Response> {
-  const { impersonate, ...rest } = init ?? {};
-  return new Session(impersonate ? { impersonate } : {}).fetch(input, { ...rest, method });
+  const { impersonate, ja3, akamai, shuffle, ...rest } = init ?? {};
+  return new Session({ impersonate, ja3, akamai, shuffle }).fetch(input, { ...rest, method });
 }
 
-export interface WorkerRequestInit extends SessionRequestInit {
-  /** Whose ClientHello to send for this one request. */
-  impersonate?: ProfileName | Impersonation | undefined;
-}
+export interface WorkerRequestInit
+  extends
+    SessionRequestInit,
+    Pick<WorkerSessionDefaults, 'impersonate' | 'ja3' | 'akamai' | 'shuffle'> {}
 
 export const get = (url: string | URL, init?: WorkerRequestInit) => request('GET', url, init);
 export const post = (url: string | URL, init?: WorkerRequestInit) => request('POST', url, init);
@@ -321,10 +370,9 @@ export type { SessionState } from './state';
 export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
 export { profiles } from '../fingerprint/profiles';
-export { FingerprintError, fromFingerprints } from '../fingerprint/custom';
+export { FingerprintError } from '../fingerprint/custom';
 export { ResourceError } from '../fingerprint/order';
 export type { FetchSite, Resource } from '../fingerprint/order';
-export type { FromFingerprints } from '../fingerprint/custom';
 export type { Impersonation, ProfileName } from '../fingerprint/profiles';
 export type { SessionDefaults, SessionRequestInit, SessionWebSocketInit } from '../client/session';
 export { WebSocketConnection, WebSocketError } from '../http/websocket';

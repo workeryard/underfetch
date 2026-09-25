@@ -175,7 +175,7 @@ export function akamai(profile: Http2Profile): string {
 
 export interface Verdict {
   name: string;
-  ja4: { got: string; want: string; ok: boolean };
+  ja4: { got: string; want: string | undefined; ok: boolean };
   akamai: { got: string; want: string; ok: boolean };
   /** Present when the profile states a JA3 to match. */
   ja3?: { got: string; want: string; ok: boolean } | undefined;
@@ -191,7 +191,7 @@ export async function verifyProfile(
   name: string,
   profile: {
     http2: Http2Profile;
-    expected: { ja4: string; akamai: string; ja3?: string | undefined };
+    expected: { ja4?: string | undefined; akamai: string; ja3?: string | undefined };
   },
   hello: Uint8Array,
 ): Promise<Verdict> {
@@ -206,7 +206,12 @@ export async function verifyProfile(
       ? undefined
       : { got: ja3(parsed), want: wantJa3, ok: ja3(parsed) === wantJa3 };
   const checked = {
-    ja4: { got: got.ja4, want: profile.expected.ja4, ok: got.ja4 === profile.expected.ja4 },
+    // A profile built from a JA3 claims no JA4; its JA3 is checked instead.
+    ja4: {
+      got: got.ja4,
+      want: profile.expected.ja4,
+      ok: profile.expected.ja4 === undefined || got.ja4 === profile.expected.ja4,
+    },
     akamai: {
       got: got.akamai,
       want: profile.expected.akamai,

@@ -16,6 +16,7 @@
  */
 
 import type { Cookie } from '../client/cookies';
+import { withFingerprints, type Fingerprints } from '../fingerprint/custom';
 import type { Impersonation } from '../fingerprint/profiles';
 
 /** Bumped on any change to the shape; a newer state is refused, not misread. */
@@ -26,14 +27,28 @@ export interface SessionState {
   /** Unix milliseconds. */
   savedAt: number;
   /**
-   * The browser the tickets and cookies were earned as, by its expected JA4
-   * and, for a built-in, its name. Null when nothing was impersonated.
+   * The browser the tickets and cookies were earned as. Null when nothing was
+   * impersonated.
    */
-  impersonate: { name?: string | undefined; ja4: string } | null;
+  impersonate: Identity | null;
   /** Null when the session kept no cookies. */
   cookies: Cookie[] | null;
   /** TLS 1.3 tickets, base64: what `TicketStore.export` wrote. Empty when none. */
   tickets: string;
+}
+
+/**
+ * Enough to rebuild a profile and to know it again: the built-in it started
+ * from and the strings it was given, then the fingerprints it claimed.
+ */
+export interface Identity {
+  /** The built-in profile's name, when it began as one. */
+  name?: string | undefined;
+  /** The JA3 and Akamai strings given with it; see `withFingerprints`. */
+  input?: Fingerprints | undefined;
+  ja4?: string | undefined;
+  ja3?: string | undefined;
+  akamai?: string | undefined;
 }
 
 export class SessionStateError extends Error {
@@ -77,9 +92,11 @@ export function readState(input: SessionState | string): SessionState {
     );
   }
   const identity = s.impersonate;
+  const claims = (i: Identity) =>
+    [i.ja4, i.ja3, i.akamai].some((claim) => typeof claim === 'string');
   if (
     identity !== null &&
-    (typeof identity !== 'object' || identity === undefined || typeof identity.ja4 !== 'string')
+    (typeof identity !== 'object' || identity === undefined || !claims(identity))
   ) {
     throw new SessionStateError('the saved session does not say what it impersonated');
   }
@@ -98,14 +115,32 @@ export function readState(input: SessionState | string): SessionState {
   };
 }
 
+/** What `profile` claims, as an identity records it. */
+export function identityOf(
+  profile: Impersonation,
+  name: string | undefined,
+  input: Fingerprints | undefined,
+): Identity {
+  const { ja4, ja3, akamai } = profile.expected;
+  return {
+    ...(name === undefined ? {} : { name }),
+    ...(input === undefined ? {} : { input }),
+    ...(ja4 === undefined ? {} : { ja4 }),
+    ...(ja3 === undefined ? {} : { ja3 }),
+    akamai,
+  };
+}
+
 /**
- * The profile to restore as. A state earned as one browser is refused under
- * another: its tickets and cookies with a different handshake are exactly
- * the mismatch a bot check looks for. Aliases are the same browser, so the
- * comparison is by JA4, not by name.
+ * The profile to restore as: the one `given`, or else the one the state
+ * names, rebuilt from its strings. A state earned as one browser is refused
+ * as another — its tickets and cookies behind a different handshake are
+ * exactly the mismatch a bot check looks for — so every fingerprint the state
+ * recorded must be the restored profile's too. Aliases are the same browser,
+ * so the comparison is by fingerprint, not by name.
  */
 export function restoredProfile(
-  saved: SessionState['impersonate'],
+  saved: Identity | null,
   given: Impersonation | undefined,
   named: (name: string) => Impersonation | undefined,
 ): Impersonation | undefined {
@@ -117,16 +152,33 @@ export function restoredProfile(
     }
     return undefined;
   }
-  const profile = given ?? (saved.name === undefined ? undefined : named(saved.name));
+  const profile = given ?? rebuilt(saved, named);
   if (profile === undefined) {
     throw new SessionStateError(
-      `the session was saved with a profile of your own (${saved.ja4}); pass it again to restore`,
+      'the session was saved with a profile of your own; pass it again to restore',
     );
   }
-  if (profile.expected.ja4 !== saved.ja4) {
-    throw new SessionStateError(
-      `the session was saved as ${saved.name ?? saved.ja4}, not as ${profile.expected.ja4}`,
-    );
+  for (const claim of ['ja4', 'ja3', 'akamai'] as const) {
+    const was = saved[claim];
+    if (was !== undefined && profile.expected[claim] !== was) {
+      throw new SessionStateError(
+        `the session was saved as ${saved.name ?? was}, and this profile's ${claim} is ` +
+          `${profile.expected[claim] ?? 'not stated'}, not ${was}`,
+      );
+    }
   }
   return profile;
+}
+
+function rebuilt(
+  saved: Identity,
+  named: (name: string) => Impersonation | undefined,
+): Impersonation | undefined {
+  const base = saved.name === undefined ? undefined : named(saved.name);
+  if (base === undefined || saved.input === undefined) return base;
+  try {
+    return withFingerprints(base, saved.input);
+  } catch (error) {
+    throw new SessionStateError(`the saved fingerprints could not be rebuilt: ${String(error)}`);
+  }
 }

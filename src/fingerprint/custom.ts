@@ -18,7 +18,7 @@ import type { Http2Profile } from '../http/h2/connection';
 import { BUILT_BY_TLS, verbatim } from './extensions';
 import { GREASE } from './grease';
 import type { Extension, Impersonation } from './profiles';
-import { akamai as akamaiOf, ja3 as ja3Of, ja4 } from './verify';
+import { akamai as akamaiOf, ja3 as ja3Of } from './verify';
 
 export class FingerprintError extends Error {
   override name = 'FingerprintError';
@@ -44,11 +44,11 @@ const DEFAULT_DETAILS = {
 
 const numbers = (field: string | undefined) => (field ?? '').split('-').filter(Boolean).map(Number);
 
-export interface FromFingerprints {
+export interface Fingerprints {
   /** A JA3 string, GREASE left out, as tls.peet.ws prints it. */
-  ja3: string;
+  ja3?: string | undefined;
   /** An Akamai HTTP/2 string, e.g. `1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p`. */
-  akamai: string;
+  akamai?: string | undefined;
   /**
    * JA3 records one order, but Chrome shuffles on every connection. `true`
    * shuffles too; JA4 then still matches and JA3 changes every time, as
@@ -87,14 +87,24 @@ function parseAkamai(akamai: string, base: Http2Profile): Http2Profile {
 }
 
 /**
- * Builds a profile that sends the given JA3 and Akamai strings, filling in the
- * rest from `base`. Async only because JA4, which it records as the profile's
- * expected fingerprint, is a SHA-256.
+ * `base`, sending the given JA3 and Akamai strings instead of its own. Either
+ * may be left out, and what neither says — signature algorithms, headers,
+ * extension bodies — comes from `base`.
+ *
+ * With a JA3, the profile is judged by it: `expected.ja3` is the string that
+ * will go out, and no JA4 is claimed, since one computed here would only
+ * restate the input. With an Akamai string alone, the TLS side is still
+ * `base`'s and so is its JA4.
  */
-export async function fromFingerprints(
-  { ja3, akamai, shuffle = false }: FromFingerprints,
+export function withFingerprints(
   base: Impersonation,
-): Promise<Impersonation> {
+  { ja3, akamai, shuffle = false }: Fingerprints,
+): Impersonation {
+  const http2 = akamai === undefined ? base.http2 : parseAkamai(akamai, base.http2);
+  if (ja3 === undefined) {
+    return { ...base, http2, expected: { ...base.expected, akamai: akamaiOf(http2) } };
+  }
+
   const [version, cipherField, extensionField, groupField, formatField] = ja3.split(',');
   if (formatField === undefined) throw new FingerprintError(`not a JA3 string: ${ja3}`);
   if (version !== '771') {
@@ -126,7 +136,6 @@ export async function fromFingerprints(
   const order = [...leadGrease, ...extensions, ...trailGrease];
   const ciphers = [...(baseGreases ? [GREASE[0]] : []), ...numbers(cipherField)];
   const namedGroups = [...(base.greaseNamedGroup ? [GREASE[0]] : []), ...groups];
-  const http2 = parseAkamai(akamai, base.http2);
 
   const profile: Impersonation = {
     ...base,
@@ -143,13 +152,6 @@ export async function fromFingerprints(
       });
     },
     expected: {
-      ja4: await ja4({
-        ciphers,
-        extensions: order,
-        signatureSchemes: [...base.signatureSchemes],
-        alpn: [...base.alpn],
-        hasServerName: order.includes(0x0000),
-      }),
       akamai: akamaiOf(http2),
       // What will actually go out: the given string, less what cannot.
       ...(shuffle

@@ -9,7 +9,7 @@
  */
 
 import { profiles, type ProfileName } from '../src/fingerprint/profiles';
-import { fromFingerprints } from '../src/fingerprint/custom';
+import { withFingerprints } from '../src/fingerprint/custom';
 import { akamai } from '../src/fingerprint/verify';
 import { Session, type Proxy, type Resource } from '../src/workers/index';
 import { cases } from './cases/http';
@@ -170,17 +170,27 @@ export default {
     if (new URL(request.url).pathname === '/custom') {
       // A profile from a JA3 and an Akamai string, checked against what a
       // server actually saw. The strings are tls.peet.ws's own field names.
-      const base = profiles[(query.get('base') ?? 'chrome') as ProfileName];
-      const as = await fromFingerprints(
-        { ja3: query.get('ja3') ?? '', akamai: query.get('akamai') ?? '' },
-        base,
-      );
+      const base = (query.get('base') ?? 'chrome') as ProfileName;
+      const strings = {
+        ...(query.get('ja3') ? { ja3: query.get('ja3')! } : {}),
+        ...(query.get('akamai') ? { akamai: query.get('akamai')! } : {}),
+      };
+      // What the session will claim, to compare with what the server saw.
+      const as = withFingerprints(profiles[base], strings);
       const seen = (await (
-        await new Session({ impersonate: as, timeoutMs: 20_000 }).fetch(CHECKER)
+        await new Session({ impersonate: base, ...strings, timeoutMs: 20_000 }).fetch(CHECKER)
       ).json()) as Seen & { tls?: { ja3?: string } };
       return Response.json({
-        ja3: { want: as.expected.ja3, seen: seen.tls?.ja3, ok: as.expected.ja3 === seen.tls?.ja3 },
-        ja4: { want: as.expected.ja4, seen: seen.tls?.ja4, ok: as.expected.ja4 === seen.tls?.ja4 },
+        ja3: {
+          want: as.expected.ja3,
+          seen: seen.tls?.ja3,
+          ok: as.expected.ja3 === undefined || as.expected.ja3 === seen.tls?.ja3,
+        },
+        ja4: {
+          want: as.expected.ja4,
+          seen: seen.tls?.ja4,
+          ok: as.expected.ja4 === undefined || as.expected.ja4 === seen.tls?.ja4,
+        },
         akamai: {
           want: as.expected.akamai,
           seen: seen.http2?.akamai_fingerprint,
