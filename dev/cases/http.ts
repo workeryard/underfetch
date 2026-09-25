@@ -216,20 +216,19 @@ export async function cases(bin: string, profile: WorkerSessionDefaults['imperso
   });
 
   // --- auth -----------------------------------------------------------------
-  await add('auth', 'basic', async () => {
-    const r = await s().get(`${bin}/basic-auth/u/p`, { auth: { username: 'u', password: 'p' } });
-    return [r.status === 200, `status ${r.status}`];
-  });
-  await add('auth', 'bearer', async () => {
-    const r = await s().get(`${bin}/bearer`, { auth: { bearer: 'tok' } });
-    return [r.status === 200, `status ${r.status}`];
-  });
-  await add('auth', 'digest (impers has it)', async () => {
-    const r = await s().get(`${bin}/digest-auth/auth/u/p`, {
-      auth: { username: 'u', password: 'p' },
+  const user = { username: 'u', password: 'p' };
+  const digest = { ...user, type: 'digest' } as const;
+  for (const [name, path, auth] of [
+    ['basic', '/basic-auth/u/p', user],
+    ['bearer', '/bearer', { bearer: 'tok' }],
+    ['digest MD5', '/digest-auth/auth/u/p/MD5', digest],
+    ['digest SHA-256', '/digest-auth/auth/u/p/SHA-256', digest],
+  ] as const) {
+    await add('auth', name, async () => {
+      const r = await s().get(`${bin}${path}`, { auth });
+      return [r.status === 200, `status ${r.status}`];
     });
-    return [r.status === 200, `status ${r.status} — only basic/bearer exist here`];
-  });
+  }
 
   // --- encodings ------------------------------------------------------------
   for (const encoding of ['gzip', 'deflate', 'brotli']) {

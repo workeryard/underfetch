@@ -122,18 +122,18 @@ await post('https://api.example.com/token', { form: { grant_type: 'client_creden
 await request('PATCH', url, { json: { name: 'new' } });
 ```
 
-| option                           | what it does                                           |
-| -------------------------------- | ------------------------------------------------------ |
-| `params`                         | query parameters, merged with any already in the URL   |
-| `json`                           | a JSON body, and the `content-type` that implies       |
-| `form`                           | an `application/x-www-form-urlencoded` body            |
-| `auth`                           | `{ bearer }` or `{ username, password }`               |
-| `headers`                        | as `fetch` takes them                                  |
-| `proxy`                          | overrides the session's; `null` forces this one direct |
-| `timeoutMs`                      | gives up, headers and body together                    |
-| `allowRedirects`, `maxRedirects` | default `true` and `20`                                |
-| `retry`                          | a count, `RetryOptions`, or `false`                    |
-| `impersonate`                    | whose ClientHello to send                              |
+| option                           | what it does                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `params`                         | query parameters, merged with any already in the URL                         |
+| `json`                           | a JSON body, and the `content-type` that implies                             |
+| `form`                           | an `application/x-www-form-urlencoded` body                                  |
+| `auth`                           | `{ bearer }`, or `{ username, password }` as Basic, or with `type: 'digest'` |
+| `headers`                        | as `fetch` takes them                                                        |
+| `proxy`                          | overrides the session's; `null` forces this one direct                       |
+| `timeoutMs`                      | gives up, headers and body together                                          |
+| `allowRedirects`, `maxRedirects` | default `true` and `20`                                                      |
+| `retry`                          | a count, `RetryOptions`, or `false`                                          |
+| `impersonate`                    | whose ClientHello to send                                                    |
 
 What comes back is a plain `Response`, deliberately. It already carries
 `status`, `headers`, `text()` and `json()`, and unlike a bespoke response
@@ -142,6 +142,13 @@ event, and nothing waits for the whole answer. After redirects, `response.url`
 is where the chain ended.
 
 A redirect that changes host drops `authorization` and `cookie`.
+
+Digest answers the server's challenge, as curl does: the request goes once
+without credentials, and again with them after the 401 — so it costs a round
+trip, and a streamed body gets the 401 back rather than a second send. MD5,
+SHA-256 and their `-sess` forms are spoken; SHA-512-256 and `qop=auth-int`
+are refused by name. Digest credentials stay with the host they were given
+for, across redirects too.
 
 A body given as a `ReadableStream` is **uploaded as it arrives** and never held
 whole in memory — chunked on HTTP/1.1, frame by frame on HTTP/2 — so a Worker
@@ -209,21 +216,22 @@ different TLS stack means implementing six methods.
 
 ## What it does and does not do
 
-|                                                  |                             |
-| ------------------------------------------------ | --------------------------- |
-| SOCKS5, with username/password auth              | yes                         |
-| HTTP `CONNECT`, with basic auth                  | yes                         |
-| TLS 1.2 and 1.3, certificates verified           | yes                         |
-| Short certificate chains completed from AIA      | yes, as browsers do         |
-| Streaming request and response bodies            | yes                         |
-| gzip, deflate, brotli and zstd, undone for you   | yes, see below              |
-| Timeouts and `AbortSignal`                       | yes                         |
-| Redirects, with credentials dropped across hosts | yes                         |
-| HTTP/2, with HPACK and flow control              | yes                         |
-| Browser impersonation, TLS and HTTP/2            | 35 browsers, see below      |
-| Cookies, with domain and path scoping            | yes                         |
-| Retries, idempotent methods only by default      | yes                         |
-| HTTP/3                                           | never — a Worker has no UDP |
+|                                                  |                                |
+| ------------------------------------------------ | ------------------------------ |
+| SOCKS5, with username/password auth              | yes                            |
+| HTTP `CONNECT`, with basic auth                  | yes                            |
+| TLS 1.2 and 1.3, certificates verified           | yes                            |
+| Short certificate chains completed from AIA      | yes, as browsers do            |
+| Streaming request and response bodies            | yes                            |
+| gzip, deflate, brotli and zstd, undone for you   | yes, see below                 |
+| Timeouts and `AbortSignal`                       | yes                            |
+| Redirects, with credentials dropped across hosts | yes                            |
+| HTTP/2, with HPACK and flow control              | yes                            |
+| Browser impersonation, TLS and HTTP/2            | 35 browsers, see below         |
+| Cookies, with domain and path scoping            | yes                            |
+| Retries, idempotent methods only by default      | yes                            |
+| Basic, Bearer and Digest authentication          | yes, Digest in MD5 and SHA-256 |
+| HTTP/3                                           | never — a Worker has no UDP    |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is
 resolved at the proxy rather than leaking from the Worker.

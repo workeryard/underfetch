@@ -11,6 +11,7 @@ import type { Http2Profile } from '../http/h2/connection';
 import type { Dial, Proxy } from '../net/socket';
 import type { TlsFactory } from '../tls/tunnel';
 import { CookieJar } from './cookies';
+import { withDigest } from './digest';
 import { proxyFetch } from './fetch';
 import { followRedirects, type RedirectOptions } from './redirects';
 import { buildRequest, type BodyOptions } from './request';
@@ -139,10 +140,18 @@ export class Session {
       return response;
     };
 
+    // Digest answers a challenge per hop, and only on the host it was meant for.
+    const auth = init?.auth;
+    const digest =
+      auth !== undefined && 'type' in auth && auth.type === 'digest' ? auth : undefined;
+    const origin = new URL(outgoing.url).origin;
+    const authed = (one: Request) =>
+      digest === undefined ? send(one) : withDigest(one, send, digest, origin, !streamed);
+
     const followed = (one: Request) =>
       followRedirects(
         one,
-        send,
+        authed,
         {
           allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
           maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,

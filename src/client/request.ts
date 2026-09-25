@@ -19,8 +19,15 @@ export interface BodyOptions {
   json?: unknown;
   /** A form body, sent as `application/x-www-form-urlencoded`. */
   form?: Record<string, string> | URLSearchParams | undefined;
-  /** `Authorization`, as either scheme. */
-  auth?: { bearer: string } | { username: string; password: string } | undefined;
+  /**
+   * `Authorization`: a bearer token, or a username and password sent as
+   * Basic, or as Digest with `type: 'digest'` — which costs a round trip,
+   * since it answers the server's challenge.
+   */
+  auth?:
+    | { bearer: string }
+    | { username: string; password: string; type?: 'basic' | 'digest' | undefined }
+    | undefined;
 }
 
 export class ApiError extends Error {
@@ -74,7 +81,9 @@ export function buildRequest(
       headers.set('content-type', 'application/x-www-form-urlencoded');
     }
   }
-  if (auth !== undefined && !headers.has('authorization')) {
+  // Digest cannot be written before the server's challenge; the session does it.
+  const digest = auth !== undefined && 'type' in auth && auth.type === 'digest';
+  if (auth !== undefined && !digest && !headers.has('authorization')) {
     headers.set('authorization', authorization(auth));
   }
 
