@@ -8,7 +8,7 @@
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{
-    ClientSessionMemoryCache, ResolvesClientCert, ClientSessionStore, Resumption, Tls12ClientSessionValue,
+    ResolvesClientCert, ClientSessionStore, Resumption, Tls12ClientSessionValue,
     Tls13ClientSessionValue, WebPkiServerVerifier,
 };
 use rustls::fingerprint::Fingerprint;
@@ -19,7 +19,7 @@ use rustls::{
 };
 use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Cursor, Read, Write};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
@@ -189,7 +189,7 @@ impl TicketStore {
         });
         let shared = Shared {
             // As many hosts as rustls' own default cache holds.
-            tickets: Arc::new(TicketsOnly(ClientSessionMemoryCache::new(256))),
+            tickets: Arc::new(TicketsOnly::default()),
             verifier: Arc::new(Completing::new()?),
             creds: Arc::new(NoClientCert),
         };
@@ -200,6 +200,87 @@ impl TicketStore {
     #[wasm_bindgen(getter)]
     pub fn id(&self) -> u32 {
         self.id
+    }
+
+    /// Every TLS 1.3 ticket held, as bytes a later `import` takes back —
+    /// in another isolate, or after a deploy. Nothing is used up. TLS 1.2
+    /// sessions are not kept: they are rare now and their state is larger.
+    ///
+    /// These bytes resume sessions: keep them as a password is kept.
+    pub fn export(&self) -> Vec<u8> {
+        let mut out = vec![EXPORT_FORMAT];
+        let Some(shared) = self.shared() else {
+            return out;
+        };
+        let Ok(tickets) = shared.tickets.tls13.lock() else {
+            return out;
+        };
+        let mut records: Vec<(String, Vec<u8>)> = Vec::new();
+        for name in &tickets.order {
+            for value in tickets.by_host.get(name).into_iter().flatten() {
+                records.push((name.to_str().into_owned(), value.to_bytes()));
+            }
+        }
+        out.extend((records.len() as u32).to_be_bytes());
+        for (host, ticket) in records {
+            out.extend((host.len() as u16).to_be_bytes());
+            out.extend(host.as_bytes());
+            out.extend((ticket.len() as u32).to_be_bytes());
+            out.extend(ticket);
+        }
+        out
+    }
+
+    /// Takes back what `export` wrote, and answers how many tickets were
+    /// usable. A ticket for a suite this build lacks is skipped; bytes of
+    /// another layout are refused whole.
+    pub fn import(&self, blob: &[u8]) -> Result<u32, JsValue> {
+        let bad = || JsValue::from_str("these are not tickets this build exported");
+        let shared = self.shared().ok_or_else(bad)?;
+        if blob.first() != Some(&EXPORT_FORMAT) {
+            return Err(bad());
+        }
+        let mut at = 1;
+        let mut take = |n: usize| -> Result<&[u8], JsValue> {
+            let slice = blob.get(at..at + n).ok_or_else(bad)?;
+            at += n;
+            Ok(slice)
+        };
+        let count = u32::from_be_bytes(take(4)?.try_into().map_err(|_| bad())?);
+        let suites = rustls::crypto::ring::default_provider().cipher_suites;
+        let verifier: Arc<dyn ServerCertVerifier> = shared.verifier.clone();
+        let mut usable = 0;
+        let mut parsed = Vec::new();
+        for _ in 0..count {
+            let host_len = u16::from_be_bytes(take(2)?.try_into().map_err(|_| bad())?) as usize;
+            let host = std::str::from_utf8(take(host_len)?).map_err(|_| bad())?.to_string();
+            let len = u32::from_be_bytes(take(4)?.try_into().map_err(|_| bad())?) as usize;
+            parsed.push((host, take(len)?.to_vec()));
+        }
+        if at != blob.len() {
+            return Err(bad());
+        }
+        let Ok(mut tickets) = shared.tickets.tls13.lock() else {
+            return Err(bad());
+        };
+        for (host, bytes) in parsed {
+            let Ok(name) = ServerName::try_from(host) else {
+                continue;
+            };
+            if let Some(value) =
+                Tls13ClientSessionValue::from_bytes(&bytes, &suites, &verifier, &shared.creds)
+            {
+                tickets.insert(name, value);
+                usable += 1;
+            }
+        }
+        Ok(usable)
+    }
+}
+
+impl TicketStore {
+    fn shared(&self) -> Option<Shared> {
+        STORES.with(|stores| stores.borrow().get(&self.id).cloned())
     }
 }
 
@@ -224,8 +305,48 @@ impl ResolvesClientCert for NoClientCert {
     }
 }
 
-#[derive(Debug)]
-struct TicketsOnly(ClientSessionMemoryCache);
+/// At most this many hosts, and this many tickets for each: the bounds
+/// rustls' own in-memory cache uses.
+const MAX_HOSTS: usize = 256;
+const TICKETS_PER_HOST: usize = 8;
+
+/// The layout of `TicketStore::export`, bumped on any change so bytes from
+/// another build are refused rather than misread.
+const EXPORT_FORMAT: u8 = 1;
+
+/// Our own store rather than rustls' `ClientSessionMemoryCache`, whose
+/// contents cannot be read back out: a store that can be saved has to be
+/// able to list what it holds.
+#[derive(Debug, Default)]
+struct TicketsOnly {
+    tls13: Mutex<Tickets>,
+    tls12: Mutex<HashMap<ServerName<'static>, Tls12ClientSessionValue>>,
+}
+
+#[derive(Debug, Default)]
+struct Tickets {
+    by_host: HashMap<ServerName<'static>, VecDeque<Tls13ClientSessionValue>>,
+    /// Hosts in the order they were first seen, oldest first, for eviction.
+    order: VecDeque<ServerName<'static>>,
+}
+
+impl Tickets {
+    fn insert(&mut self, name: ServerName<'static>, value: Tls13ClientSessionValue) {
+        if !self.by_host.contains_key(&name) {
+            if self.order.len() >= MAX_HOSTS {
+                if let Some(oldest) = self.order.pop_front() {
+                    self.by_host.remove(&oldest);
+                }
+            }
+            self.order.push_back(name.clone());
+        }
+        let held = self.by_host.entry(name).or_default();
+        held.push_back(value);
+        if held.len() > TICKETS_PER_HOST {
+            held.pop_front();
+        }
+    }
+}
 
 impl ClientSessionStore for TicketsOnly {
     fn set_kx_hint(&self, _: ServerName<'static>, _: NamedGroup) {}
@@ -235,23 +356,35 @@ impl ClientSessionStore for TicketsOnly {
     }
 
     fn set_tls12_session(&self, name: ServerName<'static>, value: Tls12ClientSessionValue) {
-        self.0.set_tls12_session(name, value);
+        if let Ok(mut held) = self.tls12.lock() {
+            if held.len() >= MAX_HOSTS && !held.contains_key(&name) {
+                if let Some(any) = held.keys().next().cloned() {
+                    held.remove(&any);
+                }
+            }
+            held.insert(name, value);
+        }
     }
 
     fn tls12_session(&self, name: &ServerName<'_>) -> Option<Tls12ClientSessionValue> {
-        self.0.tls12_session(name)
+        self.tls12.lock().ok()?.get(name).cloned()
     }
 
     fn remove_tls12_session(&self, name: &ServerName<'static>) {
-        self.0.remove_tls12_session(name);
+        if let Ok(mut held) = self.tls12.lock() {
+            held.remove(name);
+        }
     }
 
     fn insert_tls13_ticket(&self, name: ServerName<'static>, value: Tls13ClientSessionValue) {
-        self.0.insert_tls13_ticket(name, value);
+        if let Ok(mut tickets) = self.tls13.lock() {
+            tickets.insert(name, value);
+        }
     }
 
+    /// The newest first, and each at most once, as the trait requires.
     fn take_tls13_ticket(&self, name: &ServerName<'static>) -> Option<Tls13ClientSessionValue> {
-        self.0.take_tls13_ticket(name)
+        self.tls13.lock().ok()?.by_host.get_mut(name)?.pop_back()
     }
 }
 

@@ -115,6 +115,68 @@ impl Tls13ClientSessionValue {
         self.max_early_data_size
     }
 
+    /// FORK: the ticket as bytes, so a caller can keep it past this process
+    /// and resume from it in another. Its issue time and lifetime go with it,
+    /// so expiry is judged exactly as if it had never left.
+    ///
+    /// Holds the resumption secret: whoever has these bytes can resume the
+    /// session. The server's certificate chain is not kept — resuming does
+    /// not need it, and it is most of the size — so a session resumed from
+    /// these bytes reports no peer certificates. QUIC parameters are not kept.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        FORMAT.encode(&mut out);
+        self.suite.common.suite.encode(&mut out);
+        self.age_add.encode(&mut out);
+        self.max_early_data_size.encode(&mut out);
+        (*self.common.ticket).encode(&mut out);
+        (*self.common.secret).encode(&mut out);
+        self.common.epoch.encode(&mut out);
+        self.common.lifetime_secs.encode(&mut out);
+        out
+    }
+
+    /// FORK: a ticket from `to_bytes`, bound to `verifier` and `client_creds`
+    /// as if they had issued it — rustls resumes a ticket only under those.
+    /// None for bytes it cannot read, or a suite `suites` does not include.
+    pub fn from_bytes(
+        bytes: &[u8],
+        suites: &[crate::suites::SupportedCipherSuite],
+        verifier: &Arc<dyn ServerCertVerifier>,
+        client_creds: &Arc<dyn ResolvesClientCert>,
+    ) -> Option<Self> {
+        let mut r = Reader::init(bytes);
+        if u8::read(&mut r).ok()? != FORMAT {
+            return None;
+        }
+        let id = CipherSuite::read(&mut r).ok()?;
+        let suite = suites.iter().find_map(|s| match s {
+            crate::suites::SupportedCipherSuite::Tls13(t) if t.common.suite == id => Some(*t),
+            _ => None,
+        })?;
+        let age_add = u32::read(&mut r).ok()?;
+        let max_early_data_size = u32::read(&mut r).ok()?;
+        let ticket = PayloadU16::read(&mut r).ok()?;
+        let secret = PayloadU8::<MaybeEmpty>::read(&mut r).ok()?;
+        let epoch = u64::read(&mut r).ok()?;
+        let lifetime_secs = u32::read(&mut r).ok()?;
+        if r.any_left() {
+            return None;
+        }
+        Some(Self::new(
+            suite,
+            Arc::new(ticket),
+            &secret.0,
+            CertificateChain::default(),
+            verifier,
+            client_creds,
+            UnixTime::since_unix_epoch(core::time::Duration::from_secs(epoch)),
+            lifetime_secs,
+            age_add,
+            max_early_data_size,
+        ))
+    }
+
     pub fn suite(&self) -> &'static Tls13CipherSuite {
         self.suite
     }
@@ -291,6 +353,10 @@ impl ClientSessionCommon {
 }
 
 static MAX_TICKET_LIFETIME: u32 = 7 * 24 * 60 * 60;
+
+/// FORK: the layout `Tls13ClientSessionValue::to_bytes` writes. Bumped on any
+/// change, so bytes from another build are refused rather than misread.
+const FORMAT: u8 = 1;
 
 /// This is the maximum allowed skew between server and client clocks, over
 /// the maximum ticket lifetime period.  This encompasses TCP retransmission

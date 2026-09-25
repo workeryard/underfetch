@@ -19,6 +19,20 @@
 export class TicketStore {
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * Every TLS 1.3 ticket held, as bytes a later `import` takes back —
+     * in another isolate, or after a deploy. Nothing is used up. TLS 1.2
+     * sessions are not kept: they are rare now and their state is larger.
+     *
+     * These bytes resume sessions: keep them as a password is kept.
+     */
+    export(): Uint8Array;
+    /**
+     * Takes back what `export` wrote, and answers how many tickets were
+     * usable. A ticket for a suite this build lacks is skipped; bytes of
+     * another layout are refused whole.
+     */
+    import(blob: Uint8Array): number;
     constructor();
     readonly id: number;
 }
@@ -83,7 +97,9 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_ticketstore_free: (a: number, b: number) => void;
     readonly __wbg_tlsclient_free: (a: number, b: number) => void;
+    readonly ticketstore_export: (a: number, b: number) => void;
     readonly ticketstore_id: (a: number) => number;
+    readonly ticketstore_import: (a: number, b: number, c: number, d: number) => void;
     readonly ticketstore_new: (a: number) => void;
     readonly tlsclient_close: (a: number) => void;
     readonly tlsclient_handshaking: (a: number) => number;
@@ -98,9 +114,9 @@ export interface InitOutput {
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly __wbindgen_export: (a: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export2: (a: number, b: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_export4: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export2: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export3: (a: number, b: number) => number;
+    readonly __wbindgen_export4: (a: number, b: number, c: number, d: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

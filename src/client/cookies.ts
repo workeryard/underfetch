@@ -81,8 +81,60 @@ function parseOne(header: string, url: URL, now: number): Cookie | null {
   return cookie;
 }
 
+/** Whether `value` is a cookie as `all()` gives them out, from wherever it was kept. */
+function isCookie(value: unknown): value is Cookie {
+  if (typeof value !== 'object' || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return (
+    typeof c.name === 'string' &&
+    c.name !== '' &&
+    typeof c.value === 'string' &&
+    typeof c.domain === 'string' &&
+    c.domain !== '' &&
+    typeof c.path === 'string' &&
+    c.path.startsWith('/') &&
+    (c.expires === undefined || (typeof c.expires === 'number' && Number.isFinite(c.expires))) &&
+    typeof c.secure === 'boolean' &&
+    typeof c.hostOnly === 'boolean'
+  );
+}
+
 export class CookieJar {
   #cookies: Cookie[] = [];
+
+  /**
+   * A jar holding `cookies`, as an earlier jar's `all()` gave them — kept in
+   * KV, a Durable Object or anywhere else in between. What is malformed or
+   * already expired is left out rather than trusted.
+   */
+  constructor(cookies: readonly unknown[] = [], now = Date.now()) {
+    this.add(cookies, now);
+  }
+
+  /**
+   * Takes cookies as `all()` gives them out, replacing any held with the
+   * same name, domain and path. What is malformed or expired is left out.
+   */
+  add(cookies: readonly unknown[], now = Date.now()): void {
+    for (const cookie of cookies) {
+      if (!isCookie(cookie)) continue;
+      if (cookie.expires !== undefined && cookie.expires <= now) continue;
+      const { name, value, domain, path, expires, secure, hostOnly } = cookie;
+      this.#cookies = this.#cookies.filter(
+        (held) =>
+          !(held.name === name && held.domain === domain.toLowerCase() && held.path === path),
+      );
+      this.#cookies.push({
+        name,
+        value,
+        domain: domain.toLowerCase(),
+        path,
+        ...(expires === undefined ? {} : { expires }),
+        secure,
+        hostOnly,
+      });
+    }
+  }
 
   /** Takes the `set-cookie` headers of one response. */
   store(url: URL, headers: readonly string[], now = Date.now()): void {

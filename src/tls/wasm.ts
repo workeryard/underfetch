@@ -56,28 +56,29 @@ function client(
 }
 
 /**
- * Session tickets for one factory's connections, made on the first of them.
- * A second connection to a host then resumes the first, as a returning
- * browser's does; the tickets go when the factory does.
+ * A place for one session's tickets, so a second connection to a host resumes
+ * the first, as a returning browser's does. `export()` and `import()` carry
+ * them past the isolate; the tickets go when the store is collected.
  */
-function ticketsFor(resume: boolean): () => number | undefined {
-  if (!resume) return () => undefined;
-  let store: TicketStore | undefined;
-  return () => {
-    initSync({ module: wasm });
-    store ??= new TicketStore();
-    return store.id;
-  };
+export function ticketStore(): TicketStore {
+  initSync({ module: wasm });
+  return new TicketStore();
 }
 
 /**
  * TLS that looks like whatever `as` describes, or like rustls when it is
- * absent. Connections made through one factory share session tickets unless
- * `resume` is false, so each `Session` resumes only its own.
+ * absent. Its connections share `tickets` — by default a store of their own,
+ * made on the first connection; `false` never resumes.
  */
-export function impersonating(as: Impersonation | undefined, resume = true): TlsFactory {
-  const tickets = ticketsFor(resume);
-  return (hostname, alpn, options) => client(hostname, alpn, as, options, tickets());
+export function impersonating(
+  as: Impersonation | undefined,
+  tickets: TicketStore | boolean = true,
+): TlsFactory {
+  let store = typeof tickets === 'object' ? tickets : undefined;
+  return (hostname, alpn, options) => {
+    if (tickets === true) store ??= ticketStore();
+    return client(hostname, alpn, as, options, store?.id);
+  };
 }
 
 /** TLS with rustls' own ClientHello, which is safe and instantly recognisable. Never resumes. */

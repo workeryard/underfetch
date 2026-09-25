@@ -19,7 +19,18 @@ import type { WebSocketConnection } from '../http/websocket';
 import { verifyProfile, type Verdict } from '../fingerprint/verify';
 import { acceptable, zlibDecoders, type ZlibModule } from '../http/decompress';
 import { zlibInflater, type InflateModule } from '../http/permessage-deflate';
-import { impersonating } from '../tls/wasm';
+import { impersonating, ticketStore } from '../tls/wasm';
+import type { TicketStore } from '../../rust-tls/pkg/underfetch_tls';
+import { CookieJar } from '../client/cookies';
+import {
+  fromBase64,
+  readState,
+  restoredProfile,
+  SessionStateError,
+  STATE_VERSION,
+  toBase64,
+  type SessionState,
+} from './state';
 import type { ByteSocket, Dial } from '../net/socket';
 
 /**
@@ -93,19 +104,89 @@ export interface WorkerSessionDefaults extends SessionDefaults {
  * ```
  */
 export class Session extends PlainSession {
+  readonly #as: Impersonation | undefined;
+  readonly #name: string | undefined;
+  readonly #tickets: TicketStore | undefined;
+
   constructor({ impersonate, tlsResumption = true, ...defaults }: WorkerSessionDefaults = {}) {
     const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
+    const tickets = tlsResumption ? ticketStore() : undefined;
     super({
       dial,
       decoders,
       inflater,
-      tls: impersonating(as, tlsResumption),
+      tls: impersonating(as, tickets ?? false),
       ...(as ? { http2: as.http2 } : {}),
       ...defaults,
       // A browser's headers travel with its handshake. The session's own win
       // over the profile's, and a request's win over both.
       ...(as ? { headers: browserHeaders(as, defaults.headers) } : {}),
     });
+    this.#as = as;
+    this.#name = typeof impersonate === 'string' ? impersonate : undefined;
+    this.#tickets = tickets;
+  }
+
+  /**
+   * What this session has earned — which browser, its cookies, its TLS
+   * tickets — as a plain object, for a Durable Object's storage or anywhere
+   * else that keeps objects. `unmarshal` takes it back. Keep it as a
+   * password is kept: it logs in and resumes.
+   */
+  state(): SessionState {
+    return {
+      version: STATE_VERSION,
+      savedAt: Date.now(),
+      impersonate: this.#as
+        ? { ...(this.#name ? { name: this.#name } : {}), ja4: this.#as.expected.ja4 }
+        : null,
+      cookies: this.cookies?.all() ?? null,
+      tickets: this.#tickets ? toBase64(this.#tickets.export()) : '',
+    };
+  }
+
+  /** `state()` as JSON, for KV, D1, R2 or anything else that keeps strings. */
+  marshal(): string {
+    return JSON.stringify(this.state());
+  }
+
+  /**
+   * A session carrying on from a saved one, in this isolate or any other.
+   * The proxy, timeouts and headers are not saved and come from `options`.
+   * A state saved as one browser is refused as another, and one saved with
+   * a profile of your own needs that profile passed again.
+   */
+  static unmarshal(saved: SessionState | string, options: WorkerSessionDefaults = {}): Session {
+    const state = readState(saved);
+    const { impersonate } = options;
+    const given = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
+    if (typeof impersonate === 'string' && given === undefined) {
+      throw new SessionStateError(`no built-in profile is called ${impersonate}`);
+    }
+    const profile = restoredProfile(
+      state.impersonate,
+      given,
+      (name) => profiles[name as ProfileName],
+    );
+
+    let cookies = options.cookies;
+    if (state.cookies !== null && cookies !== false) {
+      if (!(cookies instanceof CookieJar)) cookies = new CookieJar();
+      cookies.add(state.cookies);
+    }
+    const session = new Session({
+      ...options,
+      impersonate: given ?? (state.impersonate?.name as ProfileName | undefined) ?? profile,
+      ...(cookies === undefined ? {} : { cookies }),
+    });
+    if (state.tickets !== '' && session.#tickets) {
+      try {
+        session.#tickets.import(fromBase64(state.tickets));
+      } catch (error) {
+        throw new SessionStateError(`the saved tickets could not be read: ${String(error)}`);
+      }
+    }
+    return session;
   }
 }
 
@@ -186,6 +267,8 @@ export { akamai, ja3, ja4, parseClientHello, verifyProfile } from '../fingerprin
 export type { ClientHello, Verdict } from '../fingerprint/verify';
 export { impersonating, wasmTls } from '../tls/wasm';
 export { CookieJar } from '../client/cookies';
+export { SessionStateError } from './state';
+export type { SessionState } from './state';
 export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
 export { profiles } from '../fingerprint/profiles';

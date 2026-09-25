@@ -96,9 +96,47 @@ async function benchmark(url: string, rounds: number) {
   ];
 }
 
+/** The one binding the dev worker has: a local KV for /state/save and /state/load. */
+interface Env {
+  STATE: {
+    get(key: string): Promise<string | null>;
+    put(key: string, value: string): Promise<void>;
+  };
+}
+
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const query = new URL(request.url).searchParams;
+
+    // A session saved in one isolate and carried on in another: save, restart
+    // the dev server, load. The first request after loading should resume TLS
+    // and carry the cookie the saved session was given.
+    if (new URL(request.url).pathname === '/state/save') {
+      const as = (query.get('as') ?? undefined) as ProfileName | undefined;
+      const session = new Session({ impersonate: as, cookies: true, timeoutMs: 20_000 });
+      await (
+        await session.get('https://httpbin.org/cookies/set/saved/yes', { allowRedirects: false })
+      ).text();
+      await (await session.get('https://tls.peet.ws/api/all')).text();
+      const blob = session.marshal();
+      await env.STATE.put('session', blob);
+      return Response.json({ bytes: blob.length, state: JSON.parse(blob) as unknown });
+    }
+    if (new URL(request.url).pathname === '/state/load') {
+      const blob = await env.STATE.get('session');
+      if (blob === null)
+        return new Response('nothing saved; call /state/save first', { status: 404 });
+      const session = Session.unmarshal(blob, { timeoutMs: 20_000 });
+      const seen = (await (await session.get('https://tls.peet.ws/api/all')).json()) as {
+        tls?: { ja4?: string; extensions?: { name?: string }[] };
+      };
+      const cookies = (await (await session.get('https://httpbin.org/cookies')).json()) as unknown;
+      return Response.json({
+        ja4: seen.tls?.ja4,
+        resumed: seen.tls?.extensions?.some((e) => e.name?.startsWith('pre_shared_key')) ?? false,
+        cookies,
+      });
+    }
 
     if (new URL(request.url).pathname === '/bench') {
       const url = query.get('url') ?? 'https://example.com/';

@@ -27,11 +27,56 @@ export class TicketStore {
         wasm.__wbg_ticketstore_free(ptr, 0);
     }
     /**
+     * Every TLS 1.3 ticket held, as bytes a later `import` takes back —
+     * in another isolate, or after a deploy. Nothing is used up. TLS 1.2
+     * sessions are not kept: they are rare now and their state is larger.
+     *
+     * These bytes resume sessions: keep them as a password is kept.
+     * @returns {Uint8Array}
+     */
+    export() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.ticketstore_export(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v1 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export2(r0, r1 * 1, 1);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * @returns {number}
      */
     get id() {
         const ret = wasm.ticketstore_id(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * Takes back what `export` wrote, and answers how many tickets were
+     * usable. A ticket for a suite this build lacks is skipped; bytes of
+     * another layout are refused whole.
+     * @param {Uint8Array} blob
+     * @returns {number}
+     */
+    import(blob) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArray8ToWasm0(blob, wasm.__wbindgen_export3);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.ticketstore_import(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return r0 >>> 0;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
     }
     constructor() {
         try {
@@ -101,21 +146,21 @@ export class TlsClient {
     constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
             const len0 = WASM_VECTOR_LEN;
-            var ptr1 = isLikeNone(alpn) ? 0 : passStringToWasm0(alpn, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            var ptr1 = isLikeNone(alpn) ? 0 : passStringToWasm0(alpn, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
             var len1 = WASM_VECTOR_LEN;
-            var ptr2 = isLikeNone(ciphers) ? 0 : passArray16ToWasm0(ciphers, wasm.__wbindgen_export2);
+            var ptr2 = isLikeNone(ciphers) ? 0 : passArray16ToWasm0(ciphers, wasm.__wbindgen_export3);
             var len2 = WASM_VECTOR_LEN;
-            var ptr3 = isLikeNone(signature_schemes) ? 0 : passArray16ToWasm0(signature_schemes, wasm.__wbindgen_export2);
+            var ptr3 = isLikeNone(signature_schemes) ? 0 : passArray16ToWasm0(signature_schemes, wasm.__wbindgen_export3);
             var len3 = WASM_VECTOR_LEN;
-            var ptr4 = isLikeNone(extensions) ? 0 : passArray8ToWasm0(extensions, wasm.__wbindgen_export2);
+            var ptr4 = isLikeNone(extensions) ? 0 : passArray8ToWasm0(extensions, wasm.__wbindgen_export3);
             var len4 = WASM_VECTOR_LEN;
-            var ptr5 = isLikeNone(extension_order) ? 0 : passArray16ToWasm0(extension_order, wasm.__wbindgen_export2);
+            var ptr5 = isLikeNone(extension_order) ? 0 : passArray16ToWasm0(extension_order, wasm.__wbindgen_export3);
             var len5 = WASM_VECTOR_LEN;
-            var ptr6 = isLikeNone(named_groups) ? 0 : passArray16ToWasm0(named_groups, wasm.__wbindgen_export2);
+            var ptr6 = isLikeNone(named_groups) ? 0 : passArray16ToWasm0(named_groups, wasm.__wbindgen_export3);
             var len6 = WASM_VECTOR_LEN;
-            var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export2);
+            var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export3);
             var len7 = WASM_VECTOR_LEN;
             wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -147,7 +192,7 @@ export class TlsClient {
                 throw takeObject(r2);
             }
             var v1 = getArrayU8FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            wasm.__wbindgen_export2(r0, r1 * 1, 1);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -169,7 +214,7 @@ export class TlsClient {
                 throw takeObject(r2);
             }
             var v1 = getArrayU8FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            wasm.__wbindgen_export2(r0, r1 * 1, 1);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -188,7 +233,7 @@ export class TlsClient {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayU8FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            wasm.__wbindgen_export2(r0, r1 * 1, 1);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -207,7 +252,7 @@ export class TlsClient {
             let v1;
             if (r0 !== 0) {
                 v1 = getStringFromWasm0(r0, r1);
-                wasm.__wbindgen_export4(r0, r1 * 1, 1);
+                wasm.__wbindgen_export2(r0, r1 * 1, 1);
             }
             return v1;
         } finally {
@@ -224,7 +269,7 @@ export class TlsClient {
     receive(data) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export3);
             const len0 = WASM_VECTOR_LEN;
             wasm.tlsclient_receive(retptr, this.__wbg_ptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -254,7 +299,7 @@ export class TlsClient {
     send(data) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export3);
             const len0 = WASM_VECTOR_LEN;
             wasm.tlsclient_send(retptr, this.__wbg_ptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);

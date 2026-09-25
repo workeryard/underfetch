@@ -47,7 +47,7 @@ if (opts.expectedServerHostname != kj::none) {
 An autogate is a switch Cloudflare flips centrally, so the option can stop
 working without any release of yours. It is off in `wrangler dev`, which is why
 local testing proves nothing. So the certificate is checked here instead, by
-rustls compiled to WebAssembly (603 KB, 285 KB gzipped, committed — building it
+rustls compiled to WebAssembly (616 KB, 290 KB gzipped, committed — building it
 needs Rust, using it does not).
 
 ## Install
@@ -241,6 +241,39 @@ whether the server may compress.
 
 A message over `maxMessageBytes` (16 MiB by default) closes the connection
 with 1009, text that is not UTF-8 with 1007, and a broken frame with 1002.
+
+### Saving a session
+
+A session's identity — which browser, its cookies, its TLS tickets — can
+outlive the isolate that earned it. A Worker has no file to save to, and
+which store fits is yours to choose, so there are two shapes of the same
+thing:
+
+```ts
+// A Durable Object keeps the object as it is.
+await this.ctx.storage.put('session', session.state());
+const again = Session.unmarshal(await this.ctx.storage.get('session'), { proxy });
+
+// KV, D1, R2 or anything else keeps the string.
+await env.KV.put(`session:${user}`, session.marshal());
+const later = Session.unmarshal(await env.KV.get(`session:${user}`), { proxy });
+```
+
+The first request of the restored session resumes TLS with a ticket the
+saved one was given and carries its cookies — in another isolate, after a
+deploy. Only TLS 1.3 tickets are kept, and without the server's certificate
+chain, which resuming does not need; a saved session is usually well under
+a kilobyte.
+
+What is saved is the identity, not the plumbing: the proxy and its
+password, timeouts and headers are given to `unmarshal` again, so a saved
+state never carries a proxy's credentials. A state saved as one browser is
+refused as another — its tickets and cookies behind a different handshake
+are the mismatch a bot check looks for — and one saved with a profile of
+your own needs that profile passed again. A state from a newer build is
+refused rather than misread.
+
+**A saved session logs in and resumes: keep it as a password is kept.**
 
 ### Retries
 
