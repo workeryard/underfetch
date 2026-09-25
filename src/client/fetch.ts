@@ -18,7 +18,7 @@ import { missingIssuer, unverifiableSignature } from '../tls/errors';
 import { tlsTunnel, type TlsFactory, type TlsOptions, type TlsSession } from '../tls/tunnel';
 import { deadline, until } from './abort';
 
-export interface ProxyFetchOptions {
+export interface FetchOverOptions {
   /** Opens a plain TCP connection; the runtime supplies this. */
   dial: Dial;
   /** Builds a TLS client for one connection. */
@@ -123,11 +123,13 @@ async function capped(response: Response, limit: number): Promise<Uint8Array> {
 }
 
 /**
- * Performs `request` through `proxy`, so it reaches the target from the
- * proxy's address rather than Cloudflare's. The answer's body is still
- * streaming when this resolves.
+ * Performs `request` over a connection of our own: `dial` opens the socket,
+ * `tls` secures it, and `proxy`, when given, is where it leaves from — so it
+ * reaches the target from the proxy's address rather than Cloudflare's.
+ * One request, one connection; `Session` is what keeps settings between
+ * them. The answer's body is still streaming when this resolves.
  */
-export async function proxyFetch(request: Request, options: ProxyFetchOptions): Promise<Response> {
+export async function fetchOver(request: Request, options: FetchOverOptions): Promise<Response> {
   const url = new URL(request.url);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new TypeError(`cannot proxy ${url.protocol} requests`);
@@ -150,7 +152,7 @@ export async function proxyFetch(request: Request, options: ProxyFetchOptions): 
  * possible at all.
  */
 export async function remedied<T>(
-  options: Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'http2'>,
+  options: Pick<FetchOverOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'http2'>,
   signal: AbortSignal,
   once: (tls: TlsFactory) => Promise<T>,
   again: () => boolean = () => true,
@@ -190,13 +192,13 @@ export async function remedied<T>(
  */
 async function completeChain(
   session: TlsSession | undefined,
-  options: Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'http2'>,
+  options: Pick<FetchOverOptions, 'dial' | 'tls' | 'proxy' | 'http2'>,
   signal: AbortSignal,
 ): Promise<Uint8Array[]> {
   const presented = session?.presentedChain?.();
   if (presented === undefined) return [];
   const fetchCertificate = async (address: string) => {
-    const response = await proxyFetch(new Request(address), {
+    const response = await fetchOver(new Request(address), {
       ...options,
       signal,
       completeChains: false,
@@ -234,7 +236,7 @@ export async function openCarrier(
     proxy,
     tls: proxyTls,
     connectTimeoutMs,
-  }: Pick<ProxyFetchOptions, 'dial' | 'proxy' | 'tls' | 'connectTimeoutMs'>,
+  }: Pick<FetchOverOptions, 'dial' | 'proxy' | 'tls' | 'connectTimeoutMs'>,
   tls: TlsFactory,
   signal: AbortSignal,
   alpn?: string,
@@ -288,7 +290,7 @@ async function toProxy(socket: ByteSocket, proxy: Proxy, tls: TlsFactory): Promi
 async function attempt(
   request: Request,
   url: URL,
-  options: ProxyFetchOptions,
+  options: FetchOverOptions,
   tls: TlsFactory,
   signal: AbortSignal,
 ): Promise<Response> {

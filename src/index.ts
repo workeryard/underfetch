@@ -13,8 +13,8 @@
 export { aborted, deadline, TimeoutError, until } from './client/abort';
 export { CookieJar } from './client/cookies';
 export type { Cookie } from './client/cookies';
-export { proxyFetch } from './client/fetch';
-export type { ProxyFetchOptions } from './client/fetch';
+export { fetchOver } from './client/fetch';
+export type { FetchOverOptions } from './client/fetch';
 export { followRedirects } from './client/redirects';
 export type { RedirectOptions } from './client/redirects';
 export { ApiError, buildRequest } from './client/request';

@@ -298,9 +298,9 @@ anywhere — which is also how the test suite covers it, against in-memory
 streams rather than a network:
 
 ```ts
-import { proxyFetch } from 'underfetch';
+import { fetchOver } from 'underfetch';
 
-await proxyFetch(request, { dial, tls, proxy });
+await fetchOver(request, { dial, tls, proxy });
 ```
 
 `dial` opens a TCP connection and returns `{ readable, writable, close }`.

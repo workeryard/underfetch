@@ -1,7 +1,7 @@
 /**
  * A reusable client with settings of its own.
  *
- * `proxyFetch` takes everything on every call, which is right for a single
+ * `fetchOver` takes everything on every call, which is right for a single
  * request and tedious for a hundred. A session remembers the proxy, the
  * timeout and the headers, and lets one request override any of them.
  */
@@ -13,7 +13,7 @@ import type { Dial, Proxy } from '../net/socket';
 import type { TlsFactory } from '../tls/tunnel';
 import { CookieJar } from './cookies';
 import { withDigest } from './digest';
-import { proxyFetch } from './fetch';
+import { fetchOver } from './fetch';
 import { followRedirects, type RedirectOptions } from './redirects';
 import { buildRequest, type BodyOptions } from './request';
 import { withRetry, type RetryOptions } from './retry';
@@ -35,7 +35,7 @@ export interface SessionDefaults extends RedirectOptions {
   proxy?: Proxy | undefined;
   /** Gives up after this many milliseconds. */
   timeoutMs?: number | undefined;
-  /** Gives up on connecting after this many; see `ProxyFetchOptions`. */
+  /** Gives up on connecting after this many; see `FetchOverOptions`. */
   connectTimeoutMs?: number | undefined;
   /** Sent with every request, unless the request sets the header itself. */
   headers?: HeadersInit | undefined;
@@ -135,7 +135,7 @@ export class Session {
     const connectTimeoutMs = init?.connectTimeoutMs ?? this.#defaults.connectTimeoutMs;
 
     const once = (one: Request) =>
-      proxyFetch(one, {
+      fetchOver(one, {
         dial: this.#dial,
         tls: this.#tls,
         ...(this.#http2 ? { http2: this.#http2 } : {}),

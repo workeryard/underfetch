@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TimeoutError } from '../../src/client/abort';
-import { proxyFetch } from '../../src/client/fetch';
+import { fetchOver } from '../../src/client/fetch';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import type { TlsSession } from '../../src/tls/tunnel';
 
@@ -54,7 +54,7 @@ describe('giving up', () => {
     const started = Date.now();
 
     await expect(
-      proxyFetch(new Request('https://example.com/'), {
+      fetchOver(new Request('https://example.com/'), {
         dial: net.dial,
         tls: () => new Passthrough(),
         proxy: PROXY,
@@ -70,7 +70,7 @@ describe('giving up', () => {
   it('obeys a signal the caller already aborted', async () => {
     const net = silent();
     await expect(
-      proxyFetch(new Request('https://example.com/'), {
+      fetchOver(new Request('https://example.com/'), {
         dial: net.dial,
         tls: () => new Passthrough(),
         proxy: PROXY,
@@ -82,7 +82,7 @@ describe('giving up', () => {
   it('aborts partway through the handshake', async () => {
     const net = silent();
     const controller = new AbortController();
-    const pending = proxyFetch(new Request('https://example.com/'), {
+    const pending = fetchOver(new Request('https://example.com/'), {
       dial: net.dial,
       tls: () => new Passthrough(),
       proxy: PROXY,
@@ -99,7 +99,7 @@ describe('connect timeout', () => {
   it('gives up on a proxy that never answers, long before the request would', async () => {
     const net = silent();
     const started = Date.now();
-    const error = await proxyFetch(new Request('https://example.com/'), {
+    const error = await fetchOver(new Request('https://example.com/'), {
       dial: net.dial,
       tls: () => new Passthrough(),
       proxy: PROXY,
@@ -116,7 +116,7 @@ describe('connect timeout', () => {
   it('gives up on a dial that never completes', async () => {
     const hanging: Dial = () => new Promise(() => undefined);
     await expect(
-      proxyFetch(new Request('https://example.com/'), {
+      fetchOver(new Request('https://example.com/'), {
         dial: hanging,
         tls: () => new Passthrough(),
         connectTimeoutMs: 50,
@@ -139,7 +139,7 @@ describe('connect timeout', () => {
         close: () => Promise.resolve(),
       });
 
-    const pending = proxyFetch(new Request('http://example.com/'), {
+    const pending = fetchOver(new Request('http://example.com/'), {
       dial,
       tls: () => new Passthrough(),
       connectTimeoutMs: 30,
@@ -178,7 +178,7 @@ describe('a deadline during the body', () => {
       return Promise.resolve(socket);
     };
 
-    const response = await proxyFetch(new Request('http://example.com/'), {
+    const response = await fetchOver(new Request('http://example.com/'), {
       dial,
       tls: () => new Passthrough(),
       timeoutMs: 100,

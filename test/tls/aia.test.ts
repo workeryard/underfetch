@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proxyFetch } from '../../src/client/fetch';
+import { fetchOver } from '../../src/client/fetch';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import {
   caIssuersUrl,
@@ -133,7 +133,7 @@ function socketAnswering(...chunks: string[] | Uint8Array[]): ByteSocket {
   };
 }
 
-describe('proxyFetch with a short chain', () => {
+describe('fetchOver with a short chain', () => {
   const issuer = cert();
   const leaf = cert(access(0x02, 'http://ca.example/issuer.der'));
   const issuerAnswer = new Uint8Array([
@@ -165,7 +165,7 @@ describe('proxyFetch with a short chain', () => {
 
   it('fetches the issuer the leaf names and connects again with it', async () => {
     const { dial, tls, dialled, given } = setUp();
-    const response = await proxyFetch(new Request('https://short.example/'), { dial, tls });
+    const response = await fetchOver(new Request('https://short.example/'), { dial, tls });
 
     expect(await response.text()).toBe('ok');
     expect(dialled).toEqual(['short.example', 'ca.example', 'short.example']);
@@ -175,7 +175,7 @@ describe('proxyFetch with a short chain', () => {
   it('does not chase when asked not to', async () => {
     const { dial, tls, dialled } = setUp();
     await expect(
-      proxyFetch(new Request('https://short.example/'), { dial, tls, completeChains: false }),
+      fetchOver(new Request('https://short.example/'), { dial, tls, completeChains: false }),
     ).rejects.toMatch(/UnknownIssuer/);
     expect(dialled).toEqual(['short.example']);
   });

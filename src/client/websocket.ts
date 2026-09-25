@@ -12,7 +12,7 @@ import { USER_AGENT } from '../http/user-agent';
 import { acceptedDeflate, DEFLATE_OFFER, type InflaterFactory } from '../http/permessage-deflate';
 import { WebSocketConnection, WebSocketError, type Deflate } from '../http/websocket';
 import { deadline, until } from './abort';
-import { openCarrier, remedied, type ProxyFetchOptions } from './fetch';
+import { openCarrier, remedied, type FetchOverOptions } from './fetch';
 
 export interface WebSocketOptions {
   /** Offered as `Sec-WebSocket-Protocol`; the server may pick one. */
@@ -32,7 +32,7 @@ export interface WebSocketOptions {
 export interface WebSocketConnectOptions
   extends
     WebSocketOptions,
-    Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'connectTimeoutMs'> {
+    Pick<FetchOverOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'connectTimeoutMs'> {
   /**
    * Reads permessage-deflate, which is offered only when this is given: a
    * compressed message nothing can inflate would end the connection.

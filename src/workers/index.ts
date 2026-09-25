@@ -241,14 +241,6 @@ export function websocket(
   return new Session(impersonate ? { impersonate } : {}).websocket(url, rest);
 }
 
-/** The same as `get`, kept for callers that read better this way. */
-export function socketFetch(
-  input: string | URL | Request,
-  init?: SessionRequestInit,
-): Promise<Response> {
-  return new Session().fetch(input, init);
-}
-
 /**
  * Checks every built-in profile against the fingerprints it claims, using a
  * real ClientHello from the TLS module. No network, no third party.

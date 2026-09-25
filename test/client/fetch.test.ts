@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proxyFetch } from '../../src/client/fetch';
+import { fetchOver } from '../../src/client/fetch';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import type { TlsSession } from '../../src/tls/tunnel';
 
@@ -71,12 +71,12 @@ function wire(answer: string): Wire {
 const PROXY = { kind: 'socks5', hostname: '203.0.113.7', port: 1080 } as const;
 const ANSWER = 'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndone';
 
-describe('proxyFetch', () => {
+describe('fetchOver', () => {
   it('dials the proxy, not the target, and still asks for the target', async () => {
     const net = wire(ANSWER);
     const tls = new Passthrough();
 
-    const response = await proxyFetch(
+    const response = await fetchOver(
       new Request('https://api.groq.com/openai/v1/models', {
         headers: { authorization: 'Bearer gsk' },
       }),
@@ -98,7 +98,7 @@ describe('proxyFetch', () => {
     const net = wire(ANSWER);
     const asked: string[] = [];
 
-    await proxyFetch(new Request('https://api.openai.com/v1/models'), {
+    await fetchOver(new Request('https://api.openai.com/v1/models'), {
       dial: net.dial,
       tls: (hostname) => {
         asked.push(hostname);
@@ -112,7 +112,7 @@ describe('proxyFetch', () => {
 
   it('closes the tunnel only once the body has been read', async () => {
     const net = wire(ANSWER);
-    const response = await proxyFetch(new Request('https://example.com/'), {
+    const response = await fetchOver(new Request('https://example.com/'), {
       dial: net.dial,
       tls: () => new Passthrough(),
       proxy: PROXY,
@@ -146,7 +146,7 @@ describe('proxyFetch', () => {
     };
 
     await expect(
-      proxyFetch(new Request('https://example.com/'), {
+      fetchOver(new Request('https://example.com/'), {
         dial,
         tls: () => new Passthrough(),
         proxy: PROXY,

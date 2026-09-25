@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proxyFetch } from '../../src/client/fetch';
+import { fetchOver } from '../../src/client/fetch';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import type { TlsFactory, TlsOptions, TlsSession } from '../../src/tls/tunnel';
 
@@ -61,7 +61,7 @@ const UNCHECKABLE = 'TLS session failed: peer misbehaved: SignedHandshakeWithUna
 describe('a second connection', () => {
   it('offers only checkable signatures after a server picked one we cannot check', async () => {
     const { tls, given } = factory(UNCHECKABLE, (o) => o.verifiableSignatures === true);
-    const response = await proxyFetch(new Request('https://old.example/'), { dial, tls });
+    const response = await fetchOver(new Request('https://old.example/'), { dial, tls });
 
     expect(await response.text()).toBe('ok');
     expect(given.map((o) => o.verifiableSignatures ?? false)).toEqual([false, true]);
@@ -69,7 +69,7 @@ describe('a second connection', () => {
 
   it('tries each remedy once, and then gives the error back', async () => {
     const { tls, given } = factory(UNCHECKABLE, () => false);
-    await expect(proxyFetch(new Request('https://old.example/'), { dial, tls })).rejects.toMatch(
+    await expect(fetchOver(new Request('https://old.example/'), { dial, tls })).rejects.toMatch(
       /UnadvertisedSigScheme/,
     );
     expect(given).toHaveLength(2);
@@ -78,7 +78,7 @@ describe('a second connection', () => {
   it('is not made for a failure no remedy explains', async () => {
     const expired = 'TLS session failed: invalid peer certificate: certificate expired';
     const { tls, given } = factory(expired, () => false);
-    await expect(proxyFetch(new Request('https://old.example/'), { dial, tls })).rejects.toMatch(
+    await expect(fetchOver(new Request('https://old.example/'), { dial, tls })).rejects.toMatch(
       /expired/,
     );
     expect(given).toHaveLength(1);

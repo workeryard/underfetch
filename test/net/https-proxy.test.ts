@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proxyFetch } from '../../src/client/fetch';
+import { fetchOver } from '../../src/client/fetch';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import type { TlsFactory, TlsSession } from '../../src/tls/tunnel';
 
@@ -88,7 +88,7 @@ describe('HTTPS proxy', () => {
       return new XorTls(keyOf(hostname));
     };
 
-    const response = await proxyFetch(new Request('https://api.target.example/v1'), {
+    const response = await fetchOver(new Request('https://api.target.example/v1'), {
       dial: wire.dial,
       tls,
       proxy: { kind: 'https', hostname: 'proxy.example', port: 443, username: 'u', password: 'p' },
