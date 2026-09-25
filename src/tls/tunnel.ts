@@ -30,6 +30,8 @@ export interface TlsSession {
   presentedChain?(): Uint8Array;
   /** What ALPN settled on, once the handshake is done. */
   readonly protocol?: string | undefined;
+  /** Whether the handshake resumed an earlier session. Optional. */
+  resumed?(): boolean;
   close(): void;
 }
 

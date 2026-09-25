@@ -7,13 +7,19 @@
 //! owns the socket and pumps bytes through, and nothing here does any I/O.
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::WebPkiServerVerifier;
+use rustls::client::{
+    ClientSessionMemoryCache, ResolvesClientCert, ClientSessionStore, Resumption, Tls12ClientSessionValue,
+    Tls13ClientSessionValue, WebPkiServerVerifier,
+};
 use rustls::fingerprint::Fingerprint;
+use rustls::sign::CertifiedKey;
 use rustls::{
     CipherSuite, ClientConfig, ClientConnection, DigitallySignedStruct, DistinguishedName, Error,
-    RootCertStore, SignatureScheme,
+    NamedGroup, RootCertStore, SignatureScheme,
 };
 use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::prelude::*;
@@ -48,11 +54,45 @@ fn certificates_from(blob: &[u8]) -> Vec<CertificateDer<'static>> {
 /// intermediates a path may be built from. The path must still end at a
 /// trusted root and every other check still applies, so an extra certificate
 /// can complete a chain but never excuse a bad one.
+///
+/// One verifier serves every connection of a `TicketStore`, because rustls
+/// resumes a ticket only under the very verifier that issued it. What differs
+/// between connections is the `Context`, which a `TlsClient` puts in place
+/// before each batch of bytes it processes: JavaScript is single-threaded, and
+/// verification happens inside that one synchronous call, so no other
+/// connection's handshake can run in between.
 #[derive(Debug)]
 struct Completing {
     inner: Arc<WebPkiServerVerifier>,
-    extra: Vec<CertificateDer<'static>>,
+    current: Mutex<Context>,
+}
+
+/// One connection's share of the verifier: the intermediates fetched for it,
+/// and where to record the chain its server presents.
+#[derive(Debug, Clone, Default)]
+struct Context {
+    extra: Arc<Vec<CertificateDer<'static>>>,
     presented: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+impl Completing {
+    fn new() -> Result<Completing, JsValue> {
+        let mut roots = RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let inner = WebPkiServerVerifier::builder_with_provider(
+            Arc::new(roots),
+            Arc::new(rustls::crypto::ring::default_provider()),
+        )
+        .build()
+        .map_err(|error| fail("could not build the certificate verifier", error))?;
+        Ok(Completing { inner, current: Mutex::new(Context::default()) })
+    }
+
+    fn enter(&self, context: &Context) {
+        if let Ok(mut current) = self.current.lock() {
+            *current = context.clone();
+        }
+    }
 }
 
 impl ServerCertVerifier for Completing {
@@ -64,14 +104,15 @@ impl ServerCertVerifier for Completing {
         ocsp_response: &[u8],
         now: UnixTime,
     ) -> Result<ServerCertVerified, Error> {
-        if let Ok(mut presented) = self.presented.lock() {
+        let context = self.current.lock().map(|c| c.clone()).unwrap_or_default();
+        if let Ok(mut presented) = context.presented.lock() {
             *presented = std::iter::once(end_entity)
                 .chain(intermediates)
                 .map(|cert| cert.to_vec())
                 .collect();
         }
         let mut pool: Vec<CertificateDer<'_>> = intermediates.to_vec();
-        pool.extend(self.extra.iter().cloned());
+        pool.extend(context.extra.iter().cloned());
         self.inner
             .verify_server_cert(end_entity, &pool, server_name, ocsp_response, now)
     }
@@ -105,10 +146,120 @@ impl ServerCertVerifier for Completing {
     }
 }
 
+/// Session tickets, kept so a second connection to a host resumes the first
+/// as a returning browser does. One per `Session` on the JavaScript side, so
+/// nothing links one caller's connections to another's.
+///
+/// rustls' own store also remembers which key-exchange group each server
+/// chose and leads the next ClientHello's key share with it. A browser does
+/// not — Chrome leads with X25519 every time — so that half is dropped here,
+/// and only the tickets are kept.
+///
+/// JavaScript holds the store by its `id`, which a `TlsClient` is handed;
+/// wasm-bindgen cannot pass an optional reference to one of its own objects.
+/// Dropping the store, which wasm-bindgen does when its JavaScript object is
+/// collected, forgets the tickets.
+#[wasm_bindgen]
+pub struct TicketStore {
+    id: u32,
+}
+
+/// What the connections of one store share: the tickets, and the verifier
+/// and client-certificate resolver rustls checks a ticket against.
+#[derive(Clone)]
+struct Shared {
+    tickets: Arc<TicketsOnly>,
+    verifier: Arc<Completing>,
+    creds: Arc<dyn ResolvesClientCert>,
+}
+
+thread_local! {
+    static STORES: RefCell<HashMap<u32, Shared>> = RefCell::new(HashMap::new());
+    static NEXT_ID: Cell<u32> = const { Cell::new(1) };
+}
+
+#[wasm_bindgen]
+impl TicketStore {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<TicketStore, JsValue> {
+        let id = NEXT_ID.with(|next| {
+            let id = next.get();
+            next.set(id.wrapping_add(1).max(1));
+            id
+        });
+        let shared = Shared {
+            // As many hosts as rustls' own default cache holds.
+            tickets: Arc::new(TicketsOnly(ClientSessionMemoryCache::new(256))),
+            verifier: Arc::new(Completing::new()?),
+            creds: Arc::new(NoClientCert),
+        };
+        STORES.with(|stores| stores.borrow_mut().insert(id, shared));
+        Ok(TicketStore { id })
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+}
+
+impl Drop for TicketStore {
+    fn drop(&mut self) {
+        STORES.with(|stores| stores.borrow_mut().remove(&self.id));
+    }
+}
+
+/// We never present a client certificate; this says so, as one object a
+/// store's connections can share.
+#[derive(Debug)]
+struct NoClientCert;
+
+impl ResolvesClientCert for NoClientCert {
+    fn resolve(&self, _: &[&[u8]], _: &[SignatureScheme]) -> Option<Arc<CertifiedKey>> {
+        None
+    }
+
+    fn has_certs(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug)]
+struct TicketsOnly(ClientSessionMemoryCache);
+
+impl ClientSessionStore for TicketsOnly {
+    fn set_kx_hint(&self, _: ServerName<'static>, _: NamedGroup) {}
+
+    fn kx_hint(&self, _: &ServerName<'_>) -> Option<NamedGroup> {
+        None
+    }
+
+    fn set_tls12_session(&self, name: ServerName<'static>, value: Tls12ClientSessionValue) {
+        self.0.set_tls12_session(name, value);
+    }
+
+    fn tls12_session(&self, name: &ServerName<'_>) -> Option<Tls12ClientSessionValue> {
+        self.0.tls12_session(name)
+    }
+
+    fn remove_tls12_session(&self, name: &ServerName<'static>) {
+        self.0.remove_tls12_session(name);
+    }
+
+    fn insert_tls13_ticket(&self, name: ServerName<'static>, value: Tls13ClientSessionValue) {
+        self.0.insert_tls13_ticket(name, value);
+    }
+
+    fn take_tls13_ticket(&self, name: &ServerName<'static>) -> Option<Tls13ClientSessionValue> {
+        self.0.take_tls13_ticket(name)
+    }
+}
+
 #[wasm_bindgen]
 pub struct TlsClient {
     conn: ClientConnection,
-    presented: Arc<Mutex<Vec<Vec<u8>>>>,
+    verifier: Arc<Completing>,
+    context: Context,
 }
 
 #[wasm_bindgen]
@@ -133,31 +284,32 @@ impl TlsClient {
         named_groups: Option<Vec<u16>>,
         intermediates: Option<Vec<u8>>,
         verifiable_signatures: Option<bool>,
+        tickets: Option<u32>,
     ) -> Result<TlsClient, JsValue> {
-        let mut roots = RootCertStore::empty();
-        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
-        let inner = WebPkiServerVerifier::builder_with_provider(
-            Arc::new(roots),
-            Arc::new(rustls::crypto::ring::default_provider()),
-        )
-        .build()
-        .map_err(|error| fail("could not build the certificate verifier", error))?;
+        let shared = tickets.and_then(|id| STORES.with(|stores| stores.borrow().get(&id).cloned()));
+        let verifier = match &shared {
+            Some(shared) => shared.verifier.clone(),
+            None => Arc::new(Completing::new()?),
+        };
         // The schemes this verifier can check. A browser offers more — SHA-1,
         // and ECDSA with SHA-512 — and an old TLS 1.2 server that picks one
         // cannot be verified. Asked for, the offer is cut to what can be.
-        let verifiable = inner.supported_verify_schemes();
-        let presented = Arc::new(Mutex::new(Vec::new()));
-        let verifier = Completing {
-            inner,
-            extra: certificates_from(&intermediates.unwrap_or_default()),
-            presented: presented.clone(),
+        let verifiable = verifier.inner.supported_verify_schemes();
+        let context = Context {
+            extra: Arc::new(certificates_from(&intermediates.unwrap_or_default())),
+            presented: Arc::new(Mutex::new(Vec::new())),
         };
 
         let mut config = ClientConfig::builder()
             .dangerous()
-            .with_custom_certificate_verifier(Arc::new(verifier))
+            .with_custom_certificate_verifier(verifier.clone())
             .with_no_client_auth();
+        // Without a store each connection starts with an empty cache of its
+        // own, which is to say it never resumes.
+        if let Some(shared) = shared {
+            config.resumption = Resumption::store(shared.tickets);
+            config.client_auth_cert_resolver = shared.creds;
+        }
         if let Some(list) = alpn {
             config.alpn_protocols = list
                 .split(',')
@@ -200,7 +352,15 @@ impl TlsClient {
             .to_owned();
         let conn = ClientConnection::new(Arc::new(config), name)
             .map_err(|error| fail("could not start TLS", error))?;
-        Ok(TlsClient { conn, presented })
+        // The ClientHello was written above; its server's answer is checked
+        // in `receive`, which puts this connection's context in place first.
+        Ok(TlsClient { conn, verifier, context })
+    }
+
+    /// Whether this connection resumed an earlier session rather than doing
+    /// a full handshake. Meaningful once the handshake is done.
+    pub fn resumed(&self) -> bool {
+        matches!(self.conn.handshake_kind(), Some(rustls::HandshakeKind::Resumed))
     }
 
     /// Hands over bytes that arrived from the network and returns how many were
@@ -211,6 +371,7 @@ impl TlsClient {
             .conn
             .read_tls(&mut Cursor::new(data))
             .map_err(|error| fail("TLS read failed", error))?;
+        self.verifier.enter(&self.context);
         self.conn
             .process_new_packets()
             .map_err(|error| fail("TLS session failed", error))?;
@@ -270,7 +431,7 @@ impl TlsClient {
     #[wasm_bindgen(js_name = presentedChain)]
     pub fn presented_chain(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        if let Ok(presented) = self.presented.lock() {
+        if let Ok(presented) = self.context.presented.lock() {
             for cert in presented.iter() {
                 out.extend_from_slice(&(cert.len() as u32).to_be_bytes());
                 out.extend_from_slice(cert);

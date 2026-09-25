@@ -75,6 +75,12 @@ export interface WorkerSessionDefaults extends SessionDefaults {
    * or nothing at all, which sends rustls' — safe, and recognisable as rustls.
    */
   impersonate?: ProfileName | Impersonation | undefined;
+  /**
+   * Resume TLS sessions: a second connection to a host carries the ticket
+   * the first was given, as a returning browser's does. The tickets belong
+   * to this session alone. Default: true.
+   */
+  tlsResumption?: boolean | undefined;
 }
 
 /**
@@ -87,13 +93,13 @@ export interface WorkerSessionDefaults extends SessionDefaults {
  * ```
  */
 export class Session extends PlainSession {
-  constructor({ impersonate, ...defaults }: WorkerSessionDefaults = {}) {
+  constructor({ impersonate, tlsResumption = true, ...defaults }: WorkerSessionDefaults = {}) {
     const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
     super({
       dial,
       decoders,
       inflater,
-      tls: impersonating(as),
+      tls: impersonating(as, tlsResumption),
       ...(as ? { http2: as.http2 } : {}),
       ...defaults,
       // A browser's headers travel with its handshake. The session's own win

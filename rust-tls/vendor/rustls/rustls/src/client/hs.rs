@@ -669,6 +669,17 @@ fn prepare_resumption<'a>(
         suite.can_resume_from(tls13.suite())?;
     }
 
+    // FORK: BoringSSL and NSS ask for a ticket in every ClientHello, the
+    // resuming ones too, with an empty session_ticket extension; rustls drops
+    // it once it holds a TLS 1.3 ticket. A browser's extension list must not
+    // shrink when it resumes, so a fingerprinted config keeps it.
+    if config.fingerprint.is_some()
+        && config.supports_version(ProtocolVersion::TLSv1_2, cx.common.protocol)
+        && config.resumption.tls12_resumption == Tls12Resumption::SessionIdOrTickets
+    {
+        exts.session_ticket = Some(ClientSessionTicket::Request);
+    }
+
     tls13::prepare_resumption(config, cx, &tls13, exts, suite.is_some());
     Some(tls13)
 }

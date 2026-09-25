@@ -7,7 +7,7 @@
  */
 
 import { encodeExtensions, type Impersonation } from '../fingerprint/profiles';
-import { initSync, TlsClient } from '../../rust-tls/pkg/underfetch_tls';
+import { initSync, TicketStore, TlsClient } from '../../rust-tls/pkg/underfetch_tls';
 import { encodeCertificates } from './aia';
 import wasm from '../../rust-tls/pkg/underfetch_tls_bg.wasm';
 import type { TlsFactory, TlsOptions } from './tunnel';
@@ -21,6 +21,7 @@ function client(
   alpn: string | undefined,
   as: Impersonation | undefined,
   { intermediates, verifiableSignatures }: TlsOptions = {},
+  tickets?: number,
 ) {
   initSync({ module: wasm });
   const extra = intermediates?.length ? encodeCertificates(intermediates) : undefined;
@@ -36,6 +37,7 @@ function client(
       undefined,
       extra,
       verifiableSignatures,
+      tickets,
     );
   }
   return new TlsClient(
@@ -49,15 +51,35 @@ function client(
     as.namedGroups === undefined ? undefined : new Uint16Array(as.namedGroups),
     extra,
     verifiableSignatures,
+    tickets,
   );
 }
 
-/** TLS that looks like whatever `as` describes, or like rustls when it is absent. */
-export const impersonating =
-  (as: Impersonation | undefined): TlsFactory =>
-  (hostname, alpn, options) =>
-    client(hostname, alpn, as, options);
+/**
+ * Session tickets for one factory's connections, made on the first of them.
+ * A second connection to a host then resumes the first, as a returning
+ * browser's does; the tickets go when the factory does.
+ */
+function ticketsFor(resume: boolean): () => number | undefined {
+  if (!resume) return () => undefined;
+  let store: TicketStore | undefined;
+  return () => {
+    initSync({ module: wasm });
+    store ??= new TicketStore();
+    return store.id;
+  };
+}
 
-/** TLS with rustls' own ClientHello, which is safe and instantly recognisable. */
+/**
+ * TLS that looks like whatever `as` describes, or like rustls when it is
+ * absent. Connections made through one factory share session tickets unless
+ * `resume` is false, so each `Session` resumes only its own.
+ */
+export function impersonating(as: Impersonation | undefined, resume = true): TlsFactory {
+  const tickets = ticketsFor(resume);
+  return (hostname, alpn, options) => client(hostname, alpn, as, options, tickets());
+}
+
+/** TLS with rustls' own ClientHello, which is safe and instantly recognisable. Never resumes. */
 export const wasmTls: TlsFactory = (hostname, alpn, options) =>
   client(hostname, alpn, undefined, options);

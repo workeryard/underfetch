@@ -150,6 +150,24 @@ export default {
       return Response.json({ as: as ?? null, passed, total: results.length, results });
     }
 
+    // Two requests through one session: the second should resume the first,
+    // and tls.peet.ws shows the ClientHello it was sent each time.
+    if (new URL(request.url).pathname === '/resume') {
+      const as = (query.get('as') ?? undefined) as ProfileName | undefined;
+      const session = new Session({ impersonate: as, timeoutMs: 20_000 });
+      const hellos = [];
+      for (let i = 0; i < 3; i++) {
+        const seen = (await (await session.get('https://tls.peet.ws/api/all')).json()) as {
+          tls?: { ja4?: string; extensions?: { name?: string }[] };
+        };
+        hellos.push({
+          ja4: seen.tls?.ja4,
+          psk: seen.tls?.extensions?.some((e) => e.name?.startsWith('pre_shared_key')) ?? false,
+        });
+      }
+      return Response.json({ as: as ?? null, hellos });
+    }
+
     if (new URL(request.url).pathname === '/fetch') {
       const url = query.get('url');
       if (url === null) return new Response('give me ?url=', { status: 400 });

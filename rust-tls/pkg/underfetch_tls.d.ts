@@ -1,6 +1,28 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Session tickets, kept so a second connection to a host resumes the first
+ * as a returning browser does. One per `Session` on the JavaScript side, so
+ * nothing links one caller's connections to another's.
+ *
+ * rustls' own store also remembers which key-exchange group each server
+ * chose and leads the next ClientHello's key share with it. A browser does
+ * not — Chrome leads with X25519 every time — so that half is dropped here,
+ * and only the tickets are kept.
+ *
+ * JavaScript holds the store by its `id`, which a `TlsClient` is handed;
+ * wasm-bindgen cannot pass an optional reference to one of its own objects.
+ * Dropping the store, which wasm-bindgen does when its JavaScript object is
+ * collected, forgets the tickets.
+ */
+export class TicketStore {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor();
+    readonly id: number;
+}
+
 export class TlsClient {
     free(): void;
     [Symbol.dispose](): void;
@@ -18,7 +40,7 @@ export class TlsClient {
      * out and rustls makes its own choices, which are safe and instantly
      * recognisable as rustls.
      */
-    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null);
+    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null, tickets?: number | null);
     /**
      * Ciphertext waiting to go out on the socket. Empty when there is none.
      */
@@ -40,6 +62,11 @@ export class TlsClient {
      */
     receive(data: Uint8Array): number;
     /**
+     * Whether this connection resumed an earlier session rather than doing
+     * a full handshake. Meaningful once the handshake is done.
+     */
+    resumed(): boolean;
+    /**
      * Queues plaintext for encryption; read it back out with `outgoing`.
      */
     send(data: Uint8Array): void;
@@ -54,15 +81,19 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_ticketstore_free: (a: number, b: number) => void;
     readonly __wbg_tlsclient_free: (a: number, b: number) => void;
+    readonly ticketstore_id: (a: number) => number;
+    readonly ticketstore_new: (a: number) => void;
     readonly tlsclient_close: (a: number) => void;
     readonly tlsclient_handshaking: (a: number) => number;
-    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number) => void;
+    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => void;
     readonly tlsclient_outgoing: (a: number, b: number) => void;
     readonly tlsclient_plaintext: (a: number, b: number) => void;
     readonly tlsclient_presentedChain: (a: number, b: number) => void;
     readonly tlsclient_protocol: (a: number, b: number) => void;
     readonly tlsclient_receive: (a: number, b: number, c: number, d: number) => void;
+    readonly tlsclient_resumed: (a: number) => number;
     readonly tlsclient_send: (a: number, b: number, c: number, d: number) => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly __wbindgen_export: (a: number) => void;

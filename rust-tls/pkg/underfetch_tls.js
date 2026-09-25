@@ -1,5 +1,58 @@
 /* @ts-self-types="./underfetch_tls.d.ts" */
 
+/**
+ * Session tickets, kept so a second connection to a host resumes the first
+ * as a returning browser does. One per `Session` on the JavaScript side, so
+ * nothing links one caller's connections to another's.
+ *
+ * rustls' own store also remembers which key-exchange group each server
+ * chose and leads the next ClientHello's key share with it. A browser does
+ * not — Chrome leads with X25519 every time — so that half is dropped here,
+ * and only the tickets are kept.
+ *
+ * JavaScript holds the store by its `id`, which a `TlsClient` is handed;
+ * wasm-bindgen cannot pass an optional reference to one of its own objects.
+ * Dropping the store, which wasm-bindgen does when its JavaScript object is
+ * collected, forgets the tickets.
+ */
+export class TicketStore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TicketStoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ticketstore_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get id() {
+        const ret = wasm.ticketstore_id(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    constructor() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.ticketstore_new(retptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            this.__wbg_ptr = r0;
+            TicketStoreFinalization.register(this, this.__wbg_ptr, this);
+            return this;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+}
+if (Symbol.dispose) TicketStore.prototype[Symbol.dispose] = TicketStore.prototype.free;
+
 export class TlsClient {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -43,8 +96,9 @@ export class TlsClient {
      * @param {Uint16Array | null} [named_groups]
      * @param {Uint8Array | null} [intermediates]
      * @param {boolean | null} [verifiable_signatures]
+     * @param {number | null} [tickets]
      */
-    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures) {
+    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
@@ -63,7 +117,7 @@ export class TlsClient {
             var len6 = WASM_VECTOR_LEN;
             var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export2);
             var len7 = WASM_VECTOR_LEN;
-            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0);
+            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -183,6 +237,15 @@ export class TlsClient {
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
+    }
+    /**
+     * Whether this connection resumed an earlier session rather than doing
+     * a full handshake. Meaningful once the handshake is done.
+     * @returns {boolean}
+     */
+    resumed() {
+        const ret = wasm.tlsclient_resumed(this.__wbg_ptr);
+        return ret !== 0;
     }
     /**
      * Queues plaintext for encryption; read it back out with `outgoing`.
@@ -321,6 +384,9 @@ function __wbg_get_imports() {
     };
 }
 
+const TicketStoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ticketstore_free(ptr, 1));
 const TlsClientFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_tlsclient_free(ptr, 1));

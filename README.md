@@ -47,7 +47,7 @@ if (opts.expectedServerHostname != kj::none) {
 An autogate is a switch Cloudflare flips centrally, so the option can stop
 working without any release of yours. It is off in `wrangler dev`, which is why
 local testing proves nothing. So the certificate is checked here instead, by
-rustls compiled to WebAssembly (597 KB, 281 KB gzipped, committed — building it
+rustls compiled to WebAssembly (603 KB, 285 KB gzipped, committed — building it
 needs Rust, using it does not).
 
 ## Install
@@ -425,6 +425,22 @@ Naming an `extensionOrder` makes that list authoritative: extensions the TLS
 library would have added but the profile does not name are dropped, because a
 browser sends what it sends and nothing more. Only what the standard requires
 last — PSK and ECH — survives regardless.
+
+A session **resumes TLS** as a returning browser does: the tickets a server
+hands the first connection are offered on the next, to the same host, so its
+ClientHello carries `pre_shared_key` — Chrome's JA4 becomes `t13d1517h2_…`
+there. The tickets are the session's alone, never shared between sessions,
+and last as long as it does; kept in a Worker's global scope, a session goes
+on resuming across the requests that isolate serves. It saves the
+certificate check, not a round trip: early data is never sent, as Chrome
+does not send it. `tlsResumption: false` turns it off.
+
+Two things keep a resumed hello a browser's. The key share still leads with
+X25519, where rustls on its own would lead with whatever group the server
+chose last time. And the empty `session_ticket` extension BoringSSL and NSS
+send in every hello stays in, where rustls drops it once it holds a TLS 1.3
+ticket. That rule is taken from their source: curl-impersonate publishes no
+capture of a resumed hello to check the result against.
 
 Given no profile, nothing is impersonated and no GREASE is sent. A request
 that sets no `user-agent` then says `underfetch/0.1`, the way curl names
