@@ -46,9 +46,9 @@ export interface Impersonation {
    * matches Chrome while the headers say "not a browser" fools nobody, and
    * headers are the first thing most checks read.
    *
-   * `accept-encoding` is deliberately ours rather than the browser's: a real
-   * one offers brotli and zstd, and offering what we cannot decode is exactly
-   * the mistake that broke certificate compression.
+   * `accept-encoding` is the browser's, brotli and zstd included; a session
+   * cuts from it whatever the runtime cannot decode, since offering that is
+   * exactly the mistake that broke certificate compression.
    */
   headers: readonly (readonly [string, string])[];
   /**

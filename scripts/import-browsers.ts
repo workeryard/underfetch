@@ -179,10 +179,9 @@ async function convert(
   const headers = (headersFrame.headers ?? []).map((line): [string, string] => {
     const colon = line.indexOf(':');
     const name = line.slice(0, colon).trim().toLowerCase();
-    // DecompressionStream undoes gzip and deflate only; offering brotli or
-    // zstd would invite answers we cannot read.
-    const value = name === 'accept-encoding' ? 'gzip, deflate' : line.slice(colon + 1).trim();
-    return [name, value];
+    // `accept-encoding` is kept as the browser sent it; what the runtime
+    // cannot decode is cut from it when a session is made, not here.
+    return [name, line.slice(colon + 1).trim()];
   });
 
   if (http2.settings.length === 0) throw new Error(`${file}: no HTTP/2 settings anywhere`);

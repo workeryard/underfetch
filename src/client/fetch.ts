@@ -9,6 +9,7 @@
  */
 
 import { http2Fetch, type Http2Profile } from '../http/h2/connection';
+import type { Decoders } from '../http/decompress';
 import { http1Fetch } from '../http/http1';
 import { tunnelThrough } from '../net/proxy';
 import type { ByteSocket, Dial, Proxy } from '../net/socket';
@@ -41,6 +42,11 @@ export interface ProxyFetchOptions {
    * large to hold. Default: false.
    */
   streamBody?: boolean | undefined;
+  /**
+   * Decoders beyond gzip and deflate — brotli and zstd, where the runtime has
+   * them. The Workers adapter fills this in.
+   */
+  decoders?: Decoders | undefined;
 }
 
 const defaultPort = (url: URL) => (url.protocol === 'http:' ? 80 : 443);
@@ -182,7 +188,7 @@ async function completeChain(
 async function attempt(
   request: Request,
   url: URL,
-  { dial, proxy, http2, streamBody }: ProxyFetchOptions,
+  { dial, proxy, http2, streamBody, decoders }: ProxyFetchOptions,
   tls: TlsFactory,
   signal: AbortSignal,
 ): Promise<Response> {
@@ -199,13 +205,13 @@ async function attempt(
       const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
       // Plain http needs no session; https gets one that checks the
       // certificate against the target's name, which the proxy never sees.
-      if (url.protocol === 'http:') return http1Fetch(tunnel, request, { streamBody });
+      if (url.protocol === 'http:') return http1Fetch(tunnel, request, { streamBody, decoders });
 
       const carrier = await tlsTunnel(tunnel, tls(url.hostname));
       // ALPN, not guesswork: speaking the wrong one hangs the connection.
       return carrier.protocol === 'h2'
-        ? http2Fetch(carrier, request, http2, { streamBody })
-        : http1Fetch(carrier, request, { streamBody });
+        ? http2Fetch(carrier, request, http2, { streamBody, decoders })
+        : http1Fetch(carrier, request, { streamBody, decoders });
     };
 
     const response = await until(signal, setup());

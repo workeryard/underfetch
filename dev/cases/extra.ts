@@ -106,6 +106,23 @@ export async function siteCases(profile: WorkerSessionDefaults['impersonate']) {
       }),
     );
   }
+  // httpbin has no zstd endpoint. Facebook answers zstd to anyone offering
+  // only that (checked with curl); cloudflare.com, for one, answers identity.
+  out.push(
+    await run('encoding', 'zstd undone', async () => {
+      const r = await new Session({ timeoutMs: 20_000, retry: false, impersonate: profile }).get(
+        'https://www.facebook.com/',
+        { headers: { 'accept-encoding': 'zstd' } },
+      );
+      const text = await r.text();
+      // Any status will do: without a profile Facebook refuses with a 400,
+      // and that page arrives in zstd too. What is checked is that it reads.
+      return [
+        /<html/i.test(text.slice(0, 2000)),
+        `status ${r.status}, content-encoding left=${r.headers.get('content-encoding')}, first bytes ${short(text.slice(0, 30))}`,
+      ];
+    }),
+  );
   return out;
 }
 

@@ -6,6 +6,7 @@
  * timeout and the headers, and lets one request override any of them.
  */
 
+import type { Decoders } from '../http/decompress';
 import type { Http2Profile } from '../http/h2/connection';
 import type { Dial, Proxy } from '../net/socket';
 import type { TlsFactory } from '../tls/tunnel';
@@ -41,6 +42,8 @@ export interface SessionOptions extends SessionDefaults {
   tls: TlsFactory;
   /** How to open an HTTP/2 connection, when ALPN settles on one. */
   http2?: Http2Profile | undefined;
+  /** Decoders beyond gzip and deflate; the runtime supplies these. */
+  decoders?: Decoders | undefined;
 }
 
 export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOptions {
@@ -65,13 +68,15 @@ export class Session {
   readonly #dial: Dial;
   readonly #tls: TlsFactory;
   readonly #http2: Http2Profile | undefined;
+  readonly #decoders: Decoders | undefined;
   readonly #defaults: SessionDefaults;
   readonly #jar: CookieJar | undefined;
 
-  constructor({ dial, tls, http2, ...defaults }: SessionOptions) {
+  constructor({ dial, tls, http2, decoders, ...defaults }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
     this.#http2 = http2;
+    this.#decoders = decoders;
     this.#defaults = defaults;
     this.#jar =
       defaults.cookies === true
@@ -111,6 +116,7 @@ export class Session {
         dial: this.#dial,
         tls: this.#tls,
         ...(this.#http2 ? { http2: this.#http2 } : {}),
+        ...(this.#decoders ? { decoders: this.#decoders } : {}),
         ...(proxy ? { proxy } : {}),
         ...(timeoutMs === undefined ? {} : { timeoutMs }),
         ...(init?.signal ? { signal: init.signal } : {}),

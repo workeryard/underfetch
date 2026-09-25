@@ -8,7 +8,7 @@
  */
 
 import { ByteReader, ByteWriter } from '../net/bytes';
-import { decompressed } from './decompress';
+import { decompressed, defaultAcceptEncoding, type Decoders } from './decompress';
 
 const CRLF = '\r\n';
 const BODY_CHUNK = 16_384;
@@ -42,7 +42,13 @@ const bodiless = (status: number) => status === 204 || status === 304 || status 
 /** How the request body is framed: a known length, chunks, or no body. */
 type Framing = number | 'chunked' | null;
 
-function requestHead(url: URL, method: string, headers: Headers, framing: Framing): string {
+function requestHead(
+  url: URL,
+  method: string,
+  headers: Headers,
+  framing: Framing,
+  decoders: Decoders,
+): string {
   const path = `${url.pathname}${url.search}`;
   const lines = [`${method} ${path} HTTP/1.1`, `Host: ${url.host}`];
   for (const [name, value] of headers) {
@@ -54,8 +60,11 @@ function requestHead(url: URL, method: string, headers: Headers, framing: Framin
   else if (framing !== null) lines.push(`Content-Length: ${framing}`);
   // No pooling yet, so the server is told to hang up after answering.
   lines.push('Connection: close');
-  // Only what `DecompressionStream` can undo is asked for; brotli is not in it.
-  if (!headers.has('accept-encoding')) lines.push('Accept-Encoding: gzip, deflate');
+  // Only what can be undone is asked for: brotli and zstd only where the
+  // runtime has a decoder for them.
+  if (!headers.has('accept-encoding')) {
+    lines.push(`Accept-Encoding: ${defaultAcceptEncoding(decoders)}`);
+  }
   return `${lines.join(CRLF)}${CRLF}${CRLF}`;
 }
 
@@ -160,6 +169,8 @@ export interface Http1Options {
    * refuses chunked requests will answer 411.
    */
   streamBody?: boolean | undefined;
+  /** Decoders beyond gzip and deflate; see `Decoders`. */
+  decoders?: Decoders | undefined;
 }
 
 /**
@@ -170,20 +181,26 @@ export interface Http1Options {
 export async function http1Fetch(
   socket: Http1Socket,
   request: Request,
-  { streamBody = false }: Http1Options = {},
+  { streamBody = false, decoders = {} }: Http1Options = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const writer = new ByteWriter(socket.writable);
 
   if (streamBody && request.body !== null) {
-    const head = requestHead(url, request.method, request.headers, 'chunked');
+    const head = requestHead(url, request.method, request.headers, 'chunked', decoders);
     await writer.write(new TextEncoder().encode(head));
     await writeChunked(writer, request.body);
   } else {
     // Buffering keeps the request a plain Content-Length one, which every
     // server accepts, and costs nothing for a body that was in memory anyway.
     const body = request.body === null ? null : new Uint8Array(await request.arrayBuffer());
-    const head = requestHead(url, request.method, request.headers, body?.byteLength ?? null);
+    const head = requestHead(
+      url,
+      request.method,
+      request.headers,
+      body?.byteLength ?? null,
+      decoders,
+    );
     await writer.write(new TextEncoder().encode(head));
     if (body && body.byteLength > 0) await writer.write(body);
   }
@@ -195,6 +212,6 @@ export async function http1Fetch(
   const answer = responseBody(reader, status, headers);
 
   for (const name of HOP_BY_HOP) headers.delete(name);
-  const plain = answer === null ? null : decompressed(answer, headers);
+  const plain = answer === null ? null : decompressed(answer, headers, decoders);
   return new Response(plain, { status, statusText, headers });
 }

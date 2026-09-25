@@ -15,6 +15,7 @@ import {
   type SessionRequestInit,
 } from '../client/session';
 import { verifyProfile, type Verdict } from '../fingerprint/verify';
+import { acceptable, zlibDecoders, type ZlibModule } from '../http/decompress';
 import { impersonating } from '../tls/wasm';
 import type { ByteSocket, Dial } from '../net/socket';
 
@@ -34,17 +35,28 @@ export const dial: Dial = (hostname, port) => {
 };
 
 /**
- * A client that leaves through a proxy, or straight off a socket when given
- * none — either way without the `cf-*` headers `fetch` adds.
- *
- * ```ts
- * const session = new Session({ proxy: { kind: 'socks5', hostname, port } });
- * const response = await session.fetch('https://api.example.com/v1/models');
- * ```
+ * Brotli and zstd, from the `node:zlib` a Worker carries on a recent
+ * compatibility date (2026-09-21 has it, 2024-06-01 does not). Asked for
+ * through `process.getBuiltinModule` rather than imported: an import of
+ * `node:zlib` on an older date stops the whole Worker from starting, where
+ * this finds nothing and leaves gzip and deflate.
  */
-/** The profile's headers, with anything the session set taking precedence. */
+export const decoders = zlibDecoders(
+  (
+    globalThis as {
+      process?: { getBuiltinModule?: (name: string) => unknown };
+    }
+  ).process?.getBuiltinModule?.('node:zlib') as ZlibModule | undefined,
+);
+
+/**
+ * The profile's headers, with anything the session set taking precedence.
+ * The browser's `accept-encoding` is cut to what this runtime can undo.
+ */
 function browserHeaders(as: Impersonation, own: HeadersInit | undefined): Headers {
   const headers = new Headers(as.headers as [string, string][]);
+  const offered = headers.get('accept-encoding');
+  if (offered !== null) headers.set('accept-encoding', acceptable(offered, decoders));
   if (own !== undefined) {
     for (const [name, value] of new Headers(own)) headers.set(name, value);
   }
@@ -59,11 +71,21 @@ export interface WorkerSessionDefaults extends SessionDefaults {
   impersonate?: ProfileName | Impersonation | undefined;
 }
 
+/**
+ * A client that leaves through a proxy, or straight off a socket when given
+ * none — either way without the `cf-*` headers `fetch` adds.
+ *
+ * ```ts
+ * const session = new Session({ proxy: { kind: 'socks5', hostname, port } });
+ * const response = await session.fetch('https://api.example.com/v1/models');
+ * ```
+ */
 export class Session extends PlainSession {
   constructor({ impersonate, ...defaults }: WorkerSessionDefaults = {}) {
     const as = typeof impersonate === 'string' ? profiles[impersonate] : impersonate;
     super({
       dial,
+      decoders,
       tls: impersonating(as),
       ...(as ? { http2: as.http2 } : {}),
       ...defaults,

@@ -12,7 +12,7 @@
  */
 
 import { ByteReader, ByteWriter } from '../../net/bytes';
-import { decompressed } from '../decompress';
+import { decompressed, type Decoders } from '../decompress';
 import { Hpack, type Header } from './hpack';
 import {
   encodeFrame,
@@ -120,13 +120,15 @@ export interface Http2Options {
    * uploads too large to hold.
    */
   streamBody?: boolean | undefined;
+  /** Decoders beyond gzip and deflate; see `Decoders`. */
+  decoders?: Decoders | undefined;
 }
 
 export async function http2Fetch(
   socket: Http2Socket,
   request: Request,
   profile: Http2Profile = DEFAULT_PROFILE,
-  { streamBody = false }: Http2Options = {},
+  { streamBody = false, decoders = {} }: Http2Options = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   // A body already in memory is sent whole, which also tells us up front
@@ -166,7 +168,15 @@ export async function http2Fetch(
   const held: Frame[] = [];
   if (body !== null) await upload(body, reader, writer, allowance, held);
 
-  return await readResponse(reader, writer, hpack, allowance, held, receiveWindows(profile));
+  return await readResponse(
+    reader,
+    writer,
+    hpack,
+    allowance,
+    held,
+    receiveWindows(profile),
+    decoders,
+  );
 }
 
 /**
@@ -189,6 +199,7 @@ async function readResponse(
   allowance: Allowance,
   held: Frame[],
   windows: { stream: number; connection: number },
+  decoders: Decoders,
 ): Promise<Response> {
   let headerBlock = new Uint8Array(0);
   let expectingContinuation = false;
@@ -243,6 +254,7 @@ async function readResponse(
           status,
           headers,
           done ? null : streamBody(reader, writer, allowance.maxFrame, windows),
+          decoders,
         );
       }
 
@@ -258,6 +270,7 @@ function buildResponse(
   status: number,
   headers: readonly Header[],
   body: ReadableStream<Uint8Array> | null,
+  decoders: Decoders,
 ): Response {
   const out = new Headers();
   for (const [name, value] of headers) {
@@ -265,7 +278,7 @@ function buildResponse(
     out.append(name, value);
   }
   // As on HTTP/1.1: the caller asked for a response, not for gzip.
-  const plain = body === null ? null : decompressed(body, out);
+  const plain = body === null ? null : decompressed(body, out, decoders);
   return new Response(plain, { status, headers: out });
 }
 

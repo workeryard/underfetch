@@ -1,4 +1,6 @@
+import * as zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { zlibDecoders } from '../../src/http/decompress';
 import { Hpack } from '../../src/http/h2/hpack';
 import { http2Fetch, DEFAULT_PROFILE } from '../../src/http/h2/connection';
 import {
@@ -154,6 +156,27 @@ describe('http2', () => {
     expect(response.headers.get('content-type')).toBe('text/plain');
     expect(response.headers.getSetCookie()).toEqual(['a=1', 'b=2']);
     expect(response.body).toBeNull();
+  });
+
+  it('undoes brotli with a decoder the runtime supplies', async () => {
+    const packed = zlib.brotliCompressSync('{"ok":true}');
+    const { socket } = socketOf([
+      SETTINGS,
+      serverHeaders(
+        [
+          [':status', '200'],
+          ['content-encoding', 'br'],
+        ],
+        0,
+      ),
+      encodeFrame(FrameType.Data, Flags.EndStream, 1, new Uint8Array(packed)),
+    ]);
+    const response = await http2Fetch(socket, new Request('https://example.com/'), undefined, {
+      decoders: zlibDecoders(zlib),
+    });
+
+    expect(response.headers.get('content-encoding')).toBeNull();
+    expect(await response.json()).toEqual({ ok: true });
   });
 
   it('waits past an informational response for the real one', async () => {

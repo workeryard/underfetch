@@ -36,7 +36,7 @@ export interface Capture {
   delegatedCredentials?: readonly number[] | undefined;
   recordSizeLimit?: number | undefined;
   http2: Http2Profile;
-  /** Every header the browser sent, in its order, with `accept-encoding` made ours. */
+  /** Every header the browser sent, in its order. */
   headers: readonly (readonly [string, string])[];
   /** Computed from the capture, not from anything we send. */
   expected: { ja4: string; akamai: string };

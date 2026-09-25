@@ -216,7 +216,7 @@ different TLS stack means implementing six methods.
 | TLS 1.2 and 1.3, certificates verified           | yes                         |
 | Short certificate chains completed from AIA      | yes, as browsers do         |
 | Streaming request and response bodies            | yes                         |
-| gzip and deflate, undone transparently           | yes                         |
+| gzip, deflate, brotli and zstd, undone for you   | yes, see below              |
 | Timeouts and `AbortSignal`                       | yes                         |
 | Redirects, with credentials dropped across hosts | yes                         |
 | HTTP/2, with HPACK and flow control              | yes                         |
@@ -268,10 +268,15 @@ order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the rest —
 because a handshake that matches Chrome while the headers say "not a browser"
 fools nobody. Headers a session or a request sets win over the profile's.
 
-Where it cannot be the browser, it says so. `accept-encoding` is ours
-(`gzip, deflate`) rather than the browser's `gzip, deflate, br, zstd`:
-`DecompressionStream` has no brotli and no zstd, and advertising what cannot be
-decoded is how a handshake breaks. The `sec-ch-ua` brand list rotates between
+`accept-encoding` is the browser's too — `gzip, deflate, br, zstd` for Chrome
+— wherever the answer can be read. `DecompressionStream` has only gzip and
+deflate, so brotli and zstd come from the Worker's own `node:zlib`, which a
+recent compatibility date carries (`2026-09-21` does, `2024-06-01` does not)
+without `nodejs_compat`. On an older date they are cut from the header rather
+than offered: asking for an answer that cannot be decoded is how a request
+breaks.
+
+Where it cannot be the browser, it says so. The `sec-ch-ua` brand list rotates between
 Chrome releases, so check it against a real browser if it matters to you. The
 key share is X25519 alone: the post-quantum group browsers now lead with needs
 a key exchange the TLS module does not have, and naming it without a share

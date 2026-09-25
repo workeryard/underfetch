@@ -28,6 +28,8 @@ export { DEFAULT_PROFILE, http2Fetch } from './http/h2/connection';
 export type { Http2Profile } from './http/h2/connection';
 export { Http2Error } from './http/h2/frames';
 export { Http1Error, http1Fetch } from './http/http1';
+export { acceptable, decompressed, zlibDecoders } from './http/decompress';
+export type { Decoders, ZlibModule } from './http/decompress';
 
 export { TlsError, tlsTunnel } from './tls/tunnel';
 export type { TlsFactory, TlsSession } from './tls/tunnel';
