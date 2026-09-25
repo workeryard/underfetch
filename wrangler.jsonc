@@ -1,12 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "underfetch-verify",
+  "name": "probe",
   "main": "dev/worker.ts",
   "compatibility_date": "2026-09-21",
   // The TLS module arrives as a WebAssembly.Module, which is how `src/tls/wasm.ts`
   // expects it; without this rule the import is a URL and nothing works.
   "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallback": true }],
-  // Where /state/save keeps a session for /state/load, across restarts of the
-  // dev server: local only, never deployed anywhere.
-  "kv_namespaces": [{ "binding": "STATE", "id": "underfetch-dev-state" }],
+  // Where /state/save keeps a session for /state/load: across restarts of the
+  // dev server locally, and across isolates where it is deployed. Every
+  // endpoint off localhost needs the PROBE_TOKEN secret; see dev/worker.ts.
+  "kv_namespaces": [{ "binding": "STATE", "id": "3efda4225c74421993e9faf029478618" }],
 }

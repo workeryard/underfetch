@@ -9,13 +9,36 @@ export interface Outcome {
   ok: boolean;
   ms: number;
   detail: string;
+  /** Outside the page asked for; not run. */
+  skipped?: boolean;
 }
 
 export type Check = () => Promise<[ok: boolean, detail: string]>;
 
 const CASE_LIMIT_MS = 30_000;
 
+/**
+ * Which cases this invocation runs, by their position in the run. A deployed
+ * Worker may open only so many connections per invocation, so a long run is
+ * asked for a page at a time. Module state, which is fine for a probe asked
+ * one request at a time; `page` resets it for each.
+ */
+let window = { from: 0, count: Infinity, seen: 0 };
+
+export function page(from: number, count: number): void {
+  window = { from, count, seen: 0 };
+}
+
+/** How many cases the run came across, inside the page or not. */
+export function seen(): number {
+  return window.seen;
+}
+
 export async function run(group: string, name: string, check: Check): Promise<Outcome> {
+  const at = window.seen++;
+  if (at < window.from || at >= window.from + window.count) {
+    return { group, name, ok: true, ms: 0, detail: '', skipped: true };
+  }
   const started = Date.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

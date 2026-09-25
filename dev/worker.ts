@@ -17,7 +17,7 @@ import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/ext
 import { sessionCases } from './cases/session';
 import { uploadCases } from './cases/uploads';
 import { wafCases } from './cases/waf';
-import type { Outcome } from './cases/probe';
+import { page, seen, type Outcome } from './cases/probe';
 
 /** Reports back what the handshake and the HTTP/2 preface looked like. */
 const CHECKER = 'https://tls.peet.ws/api/all';
@@ -102,10 +102,33 @@ interface Env {
     get(key: string): Promise<string | null>;
     put(key: string, value: string): Promise<void>;
   };
+  /** Set with `wrangler secret put PROBE_TOKEN` wherever this is deployed. */
+  PROBE_TOKEN?: string;
+}
+
+/**
+ * Every endpoint here fetches whatever it is told to, so deployed it is an
+ * open proxy. Off localhost a request must carry the token, and with no token
+ * configured nothing is served at all: it fails closed.
+ */
+async function allowed(request: Request, env: Env): Promise<boolean> {
+  const host = new URL(request.url).hostname;
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  const expected = env.PROBE_TOKEN;
+  const given = request.headers.get('x-probe-token');
+  if (!expected || !given) return false;
+  // Compare digests, so the time taken says nothing about the token.
+  const digest = async (text: string) =>
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  const [a, b] = await Promise.all([digest(expected), digest(given)]);
+  let differ = 0;
+  for (let i = 0; i < a.length; i++) differ |= a[i]! ^ b[i]!;
+  return differ === 0;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (!(await allowed(request, env))) return new Response('not found', { status: 404 });
     const query = new URL(request.url).searchParams;
 
     // A session saved in one isolate and carried on in another: save, restart
@@ -180,12 +203,22 @@ export default {
         websocket: () => websocketCases(as),
         waf: () => wafCases(as),
       };
-      const results: Outcome[] = [];
+      // `from` and `count` pick a page of the run, for a deployed Worker's
+      // limit on connections per invocation; `cases` says how many there are.
+      page(Number(query.get('from') ?? 0), Number(query.get('count') ?? Infinity));
+      const all: Outcome[] = [];
       for (const [name, suite] of Object.entries(suites)) {
-        if (only === null || only.split(',').includes(name)) results.push(...(await suite()));
+        if (only === null || only.split(',').includes(name)) all.push(...(await suite()));
       }
+      const results = all.filter((r) => !r.skipped);
       const passed = results.filter((r) => r.ok).length;
-      return Response.json({ as: as ?? null, passed, total: results.length, results });
+      return Response.json({
+        as: as ?? null,
+        passed,
+        total: results.length,
+        cases: seen(),
+        results,
+      });
     }
 
     // Two requests through one session: the second should resume the first,
@@ -224,13 +257,22 @@ export default {
               ...(proxyUrl.username ? { username: decodeURIComponent(proxyUrl.username) } : {}),
               ...(proxyUrl.password ? { password: decodeURIComponent(proxyUrl.password) } : {}),
             } as Proxy);
-      const response = await new Session({
-        timeoutMs: 20_000,
-        ...(as ? { impersonate: as } : {}),
-        ...(proxy ? { proxy } : {}),
-      }).fetch(url, {
-        resource: (query.get('resource') ?? 'document') as Resource,
-      });
+      let response: Response;
+      try {
+        response = await new Session({
+          timeoutMs: 20_000,
+          ...(as ? { impersonate: as } : {}),
+          ...(proxy ? { proxy } : {}),
+        }).fetch(url, {
+          resource: (query.get('resource') ?? 'document') as Resource,
+        });
+      } catch (error) {
+        const e = error as Error;
+        return Response.json(
+          { status: 0, elapsedMs: Date.now() - started, error: `${e.name}: ${e.message}` },
+          { status: 502 },
+        );
+      }
       const body = await response.text();
       return Response.json({
         status: response.status,

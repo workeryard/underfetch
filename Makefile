@@ -6,6 +6,8 @@
 #   make dev                   the dev worker on $(PORT), cache cleared
 #   make live AS=chrome        every live check against it
 #   make fetch URL=... [AS=chrome] [PROXY=socks5://host:1080]
+#   make live REMOTE=1         the same against the deployed probe worker
+#   make deploy                deploy it (every endpoint needs PROBE_TOKEN)
 
 PORT  ?= 8799
 # `:=`, not `?=`: make predefines AS as the assembler, `as`, which `?=` keeps.
@@ -14,6 +16,15 @@ ONLY  ?= http,tls,session,sites,websocket
 URL   ?= https://httpbin.org/ip
 PROXY ?=
 RESOURCE ?=
+
+# REMOTE=1 points the live targets at the deployed probe worker instead of
+# `make dev`, with the token kept outside the repo.
+PROBE_URL   ?= https://probe.underfetch.workers.dev
+TOKEN_FILE  ?= $(HOME)/.config/underfetch/probe-token
+ifdef REMOTE
+export PROBE_URL
+export PROBE_TOKEN := $(shell cat $(TOKEN_FILE) 2>/dev/null)
+endif
 
 # Rust lives in ~/.cargo/bin, which is not on every shell's PATH.
 export PATH := $(HOME)/.cargo/bin:$(PATH)
@@ -26,7 +37,7 @@ WASM    = rust-tls/pkg/underfetch_tls_bg.wasm
 .DEFAULT_GOAL := help
 .PHONY: help install check test typecheck lint format verify wasm wasm-size \
         import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
-        resume state live fetch clean
+        resume state live fetch deploy clean
 
 help: ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -111,6 +122,9 @@ live: ## fingerprints, cases and resumption, one after another [AS=name]
 
 fetch: ## one request through the dev worker [URL=] [AS=] [PROXY=] [RESOURCE=fetch]
 	$(LIVE) fetch --url $(URL) $(AS_FLAG) $(if $(PROXY),--proxy $(PROXY)) $(if $(RESOURCE),--resource $(RESOURCE))
+
+deploy: ## deploy the probe worker; its endpoints demand the PROBE_TOKEN secret
+	npx wrangler deploy
 
 clean: dev-stop ## remove the dev server's state and the Rust build
 	rm -rf .wrangler rust-tls/target
