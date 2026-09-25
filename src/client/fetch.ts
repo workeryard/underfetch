@@ -27,6 +27,12 @@ export interface ProxyFetchOptions {
   proxy?: Proxy | undefined;
   /** Gives up after this many milliseconds, headers and body together. */
   timeoutMs?: number | undefined;
+  /**
+   * Gives up on connecting — dialling, the proxy's handshake and TLS — after
+   * this many milliseconds, so a dead proxy fails fast and a retry can try
+   * again while the whole request still has time.
+   */
+  connectTimeoutMs?: number | undefined;
   /** Cancels the request. Given here, it replaces the request's own signal. */
   signal?: AbortSignal | undefined;
   /** How to open an HTTP/2 connection, when ALPN settles on one. */
@@ -220,16 +226,25 @@ export interface Carrier {
  */
 export async function openCarrier(
   url: URL,
-  { dial, proxy, tls: proxyTls }: Pick<ProxyFetchOptions, 'dial' | 'proxy' | 'tls'>,
+  {
+    dial,
+    proxy,
+    tls: proxyTls,
+    connectTimeoutMs,
+  }: Pick<ProxyFetchOptions, 'dial' | 'proxy' | 'tls' | 'connectTimeoutMs'>,
   tls: TlsFactory,
   signal: AbortSignal,
   alpn?: string,
 ): Promise<Carrier> {
   const port = url.port === '' ? defaultPort(url) : Number(url.port);
   const entry = proxy ?? { hostname: url.hostname, port };
-  const socket = await until(signal, dial(entry.hostname, entry.port));
+  // Connecting has a deadline of its own, spent once the connection is up;
+  // `signal` goes on holding the socket for as long as it is used.
+  const connecting = deadline(signal, connectTimeoutMs, 'connecting').signal;
+  const socket = await until(connecting, dial(entry.hostname, entry.port));
   const stop = () => void socket.close().catch(() => undefined);
   signal.addEventListener('abort', stop, { once: true });
+  connecting.addEventListener('abort', stop, { once: true });
   const detach = () => signal.removeEventListener('abort', stop);
 
   try {
@@ -245,10 +260,12 @@ export async function openCarrier(
       const carrier = await tlsTunnel(tunnel, tls(url.hostname, alpn));
       return { ...carrier, socket, detach };
     };
-    return await until(signal, setup());
+    return await until(connecting, setup());
   } catch (error) {
     stop();
     throw error;
+  } finally {
+    connecting.removeEventListener('abort', stop);
   }
 }
 

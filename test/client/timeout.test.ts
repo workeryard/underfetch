@@ -94,3 +94,62 @@ describe('giving up', () => {
     expect(net.closed()).toBe(true);
   });
 });
+
+describe('connect timeout', () => {
+  it('gives up on a proxy that never answers, long before the request would', async () => {
+    const net = silent();
+    const started = Date.now();
+    const error = await proxyFetch(new Request('https://example.com/'), {
+      dial: net.dial,
+      tls: () => new Passthrough(),
+      proxy: PROXY,
+      timeoutMs: 10_000,
+      connectTimeoutMs: 50,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TimeoutError);
+    expect(String(error)).toMatch(/connecting took longer than 50ms/);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(net.closed()).toBe(true);
+  });
+
+  it('gives up on a dial that never completes', async () => {
+    const hanging: Dial = () => new Promise(() => undefined);
+    await expect(
+      proxyFetch(new Request('https://example.com/'), {
+        dial: hanging,
+        tls: () => new Passthrough(),
+        connectTimeoutMs: 50,
+      }),
+    ).rejects.toThrow(/connecting took longer/);
+  });
+
+  it('leaves a slow answer alone once connected', async () => {
+    let push: (text: string) => void = () => undefined;
+    let end: () => void = () => undefined;
+    const dial: Dial = () =>
+      Promise.resolve({
+        readable: new ReadableStream<Uint8Array>({
+          start(controller) {
+            push = (text) => controller.enqueue(new TextEncoder().encode(text));
+            end = () => controller.close();
+          },
+        }),
+        writable: new WritableStream<Uint8Array>(),
+        close: () => Promise.resolve(),
+      });
+
+    const pending = proxyFetch(new Request('http://example.com/'), {
+      dial,
+      tls: () => new Passthrough(),
+      connectTimeoutMs: 30,
+    });
+    // Connected at once; the server takes far longer than 30 ms to answer.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    push('HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nslow');
+    end();
+
+    const response = await pending;
+    expect(await response.text()).toBe('slow');
+  });
+});

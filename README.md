@@ -142,6 +142,7 @@ await request('PATCH', url, { json: { name: 'new' } });
 | `headers`                        | as `fetch` takes them                                                        |
 | `proxy`                          | overrides the session's; `null` forces this one direct                       |
 | `timeoutMs`                      | gives up, headers and body together                                          |
+| `connectTimeoutMs`               | gives up on dialling, the proxy and TLS alone                                |
 | `allowRedirects`, `maxRedirects` | default `true` and `20`                                                      |
 | `retry`                          | a count, `RetryOptions`, or `false`                                          |
 | `impersonate`                    | whose ClientHello to send                                                    |
@@ -151,6 +152,14 @@ What comes back is a plain `Response`, deliberately. It already carries
 object it leaves the body **streaming** — server-sent events arrive event by
 event, and nothing waits for the whole answer. After redirects, `response.url`
 is where the chain ended.
+
+A `FormData` body goes out as `multipart/form-data`, files and all. Its
+boundary is the runtime's own format, not the browser's
+`----WebKitFormBoundary…`, which a server that looks can tell apart.
+
+`connectTimeoutMs` bounds only the connecting — dialling, the proxy's
+handshake and TLS — so a dead proxy fails in a second or two and a retry
+still has time, where `timeoutMs` alone would wait out the whole budget on it.
 
 A redirect that changes host drops `authorization` and `cookie`.
 

@@ -115,4 +115,18 @@ describe('Session', () => {
     expect(wireText).not.toContain('session-agent');
     expect(wireText).toContain('x-from: session');
   });
+
+  it('sends a FormData body as multipart, files included', async () => {
+    const wire = net(false);
+    const form = new FormData();
+    form.append('name', 'ada');
+    form.append('file', new Blob(['hello file'], { type: 'text/plain' }), 'a.txt');
+
+    await (await new Session(options(wire)).post('https://example.com/up', { body: form })).text();
+
+    const wireText = wire.sent[0] ?? '';
+    expect(wireText).toMatch(/content-type: multipart\/form-data; boundary=/);
+    expect(wireText).toContain('Content-Disposition: form-data; name="file"; filename="a.txt"');
+    expect(wireText).toContain('hello file');
+  });
 });

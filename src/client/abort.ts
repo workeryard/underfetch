@@ -29,12 +29,14 @@ export function aborted(signal: AbortSignal): Promise<never> {
 export function deadline(
   signal: AbortSignal | undefined,
   timeoutMs: number | undefined,
+  /** What the timeout's message says ran over. */
+  what = 'the request',
 ): { signal: AbortSignal; cancel: (reason: Error) => void } {
   const own = new AbortController();
   const parts: AbortSignal[] = [own.signal];
   if (signal) parts.push(signal);
   if (timeoutMs !== undefined && timeoutMs > 0) {
-    parts.push(timeoutSignal(timeoutMs));
+    parts.push(timeoutSignal(timeoutMs, what));
   }
   return {
     signal: parts.length === 1 ? own.signal : AbortSignal.any(parts),
@@ -46,9 +48,9 @@ export function deadline(
  * `AbortSignal.timeout` reports a `TimeoutError` whose message says nothing
  * about what timed out, so the duration is spelled out here instead.
  */
-function timeoutSignal(ms: number): AbortSignal {
+function timeoutSignal(ms: number, what: string): AbortSignal {
   const controller = new AbortController();
-  setTimeout(() => controller.abort(new TimeoutError(`the request took longer than ${ms}ms`)), ms);
+  setTimeout(() => controller.abort(new TimeoutError(`${what} took longer than ${ms}ms`)), ms);
   return controller.signal;
 }
 

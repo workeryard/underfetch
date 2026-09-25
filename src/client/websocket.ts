@@ -21,6 +21,8 @@ export interface WebSocketOptions {
   headers?: HeadersInit | undefined;
   /** Gives up on the handshake after this many milliseconds. */
   timeoutMs?: number | undefined;
+  /** Gives up on connecting — dial, proxy, TLS — after this many. */
+  connectTimeoutMs?: number | undefined;
   /** Closes the connection when aborted, handshake or not. */
   signal?: AbortSignal | undefined;
   /** A message larger than this closes the connection with 1009. Default: 16 MiB. */
@@ -28,7 +30,9 @@ export interface WebSocketOptions {
 }
 
 export interface WebSocketConnectOptions
-  extends WebSocketOptions, Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains'> {
+  extends
+    WebSocketOptions,
+    Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'connectTimeoutMs'> {
   /**
    * Reads permessage-deflate, which is offered only when this is given: a
    * compressed message nothing can inflate would end the connection.

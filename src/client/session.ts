@@ -35,6 +35,8 @@ export interface SessionDefaults extends RedirectOptions {
   proxy?: Proxy | undefined;
   /** Gives up after this many milliseconds. */
   timeoutMs?: number | undefined;
+  /** Gives up on connecting after this many; see `ProxyFetchOptions`. */
+  connectTimeoutMs?: number | undefined;
   /** Sent with every request, unless the request sets the header itself. */
   headers?: HeadersInit | undefined;
 }
@@ -67,6 +69,7 @@ export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOp
   /** Overrides the session's proxy. `null` forces this one request direct. */
   proxy?: Proxy | null | undefined;
   timeoutMs?: number | undefined;
+  connectTimeoutMs?: number | undefined;
   /** Overrides the session's retry policy for this one request. */
   retry?: RetryOptions | number | false | undefined;
 }
@@ -129,6 +132,7 @@ export class Session {
     // means they said nothing, so the session's own setting stands.
     const proxy = init?.proxy === undefined ? this.#defaults.proxy : (init.proxy ?? undefined);
     const timeoutMs = init?.timeoutMs ?? this.#defaults.timeoutMs;
+    const connectTimeoutMs = init?.connectTimeoutMs ?? this.#defaults.connectTimeoutMs;
 
     const once = (one: Request) =>
       proxyFetch(one, {
@@ -138,6 +142,7 @@ export class Session {
         ...(this.#decoders ? { decoders: this.#decoders } : {}),
         ...(proxy ? { proxy } : {}),
         ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        ...(connectTimeoutMs === undefined ? {} : { connectTimeoutMs }),
         ...(init?.signal ? { signal: init.signal } : {}),
         ...(streamed ? { streamBody: true } : {}),
       });
@@ -209,6 +214,7 @@ export class Session {
       dial: this.#dial,
       tls: this.#tls,
       inflater: this.#inflater,
+      connectTimeoutMs: init.connectTimeoutMs ?? this.#defaults.connectTimeoutMs,
       ...(proxy ? { proxy } : { proxy: undefined }),
       timeoutMs,
     });
