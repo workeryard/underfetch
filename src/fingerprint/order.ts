@@ -18,12 +18,14 @@
  *
  * `*` marks where headers the table does not name go, alphabetically — the
  * caller's own, such as `authorization`. Firefox puts a page's own headers
- * right after `referer`, in the order they were set. Chromium does not keep
- * one place for them: it lays them out through a hash table, so their slot
- * moves with how many there are. `*` there is the slot most of the measured
- * ones took, an approximation, not the browser's rule.
+ * right after `referer`, in the order they were set. Chromium lays a
+ * fetch()'s out through Blink's header table, so their slots depend on the
+ * names; `requestOrder` computes them (see `blink-order.ts`), and the `*` in
+ * its fetch table below is only the fallback of `headerOrder`, which is not
+ * given the names.
  */
 
+import { blinkTableOrder } from './blink-order';
 import type { Impersonation } from './profiles';
 
 /** What a request is: a page load, or a script's call to an API. */
@@ -150,6 +152,27 @@ export class ResourceError extends Error {
 export function headerOrder(profile: Impersonation, resource: Resource): readonly string[] {
   const measured = profile.family === undefined ? undefined : ORDERS[profile.family][resource];
   return measured ?? [...profile.headers.map(([name]) => name.toLowerCase()), ANY];
+}
+
+/** In a Chromium fetch(), what goes before the header table and after it. */
+const CHROMIUM_FETCH_LEAD = ['content-length', 'pragma', 'cache-control'];
+const CHROMIUM_FETCH_TAIL = CHROMIUM_FETCH.slice(CHROMIUM_FETCH.indexOf('accept'));
+
+/**
+ * The order for a request carrying `names`. The same as `headerOrder`, but
+ * for a Chromium fetch(), whose middle — the page's own headers with
+ * `user-agent` and the `sec-ch-ua` hints — is laid out by Blink's header
+ * table and so depends on which names are there; see `blink-order.ts`.
+ */
+export function requestOrder(
+  profile: Impersonation,
+  resource: Resource,
+  names: Iterable<string>,
+): readonly string[] {
+  if (profile.family !== 'chromium' || resource !== 'fetch') return headerOrder(profile, resource);
+  const fixed = new Set([...CHROMIUM_FETCH_LEAD, ...CHROMIUM_FETCH_TAIL]);
+  const middle = [...names].map((n) => n.toLowerCase()).filter((n) => !fixed.has(n));
+  return [...CHROMIUM_FETCH_LEAD, ...blinkTableOrder(middle), ...CHROMIUM_FETCH_TAIL];
 }
 
 /**

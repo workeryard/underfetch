@@ -1,0 +1,968 @@
+{
+  "about": "Header orders Chrome 154 wrote for fetch() calls, as recorded by scripts/capture-headers.ts on 2026-09-25: `set` is what the page set (dnt excluded: Chrome drops it), `chrome154` the run of headers before accept, less content-length, pragma and cache-control. Edge 153 wrote the same for every set it was given.",
+  "cases": [
+    {
+      "set": ["x-client-id", "x-a", "x-trace-id", "x-csrf-token", "x-platform", "x-goog-api-key"],
+      "chrome154": [
+        "x-platform",
+        "x-csrf-token",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-a",
+        "sec-ch-ua-mobile",
+        "x-trace-id",
+        "x-goog-api-key",
+        "user-agent",
+        "x-client-id"
+      ]
+    },
+    {
+      "set": [
+        "x-b3-traceid",
+        "authorization",
+        "x-correlation-id",
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-device-id"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-device-id",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-b3-traceid",
+        "user-agent"
+      ]
+    },
+    {
+      "set": ["x-xsrf-token"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-xsrf-token",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "x-device-id",
+        "x-xsrf-token",
+        "x-auth-token",
+        "X-VERY-LONG-HEADER-NAME-THAT-EXCEEDS-FORTY-EIGHT-BYTES-FOR-SURE",
+        "if-none-match",
+        "X-PLATFORM"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "if-none-match",
+        "x-auth-token",
+        "x-xsrf-token",
+        "x-platform",
+        "x-device-id",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "user-agent"
+      ]
+    },
+    {
+      "set": ["x-forwarded-for", "x-timezone", "x-platform"],
+      "chrome154": [
+        "x-platform",
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-forwarded-for",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "X-APP-VERSION",
+        "x-amz-date",
+        "X-SESSION-ID",
+        "x-locale",
+        "x-a",
+        "x-b3-traceid",
+        "x-zz",
+        "x-api-key",
+        "if-none-match",
+        "X-TRACE-ID",
+        "X-IG-APP-ID",
+        "x-twitter-auth-type"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-api-key",
+        "x-a",
+        "x-ig-app-id",
+        "sec-ch-ua-mobile",
+        "x-amz-date",
+        "x-locale",
+        "x-session-id",
+        "if-none-match",
+        "x-trace-id",
+        "x-b3-traceid",
+        "x-twitter-auth-type",
+        "x-app-version",
+        "user-agent",
+        "x-zz"
+      ]
+    },
+    {
+      "set": ["apikey", "x-locale", "x-auth-token", "x-b3-traceid"],
+      "chrome154": [
+        "x-auth-token",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-b3-traceid",
+        "user-agent",
+        "apikey",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "content-type",
+        "x-forwarded-for",
+        "x-trace-id",
+        "x-xsrf-token",
+        "x-correlation-id",
+        "x-custom-header",
+        "x-session-id",
+        "x-api-key",
+        "x-client-id"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-xsrf-token",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "x-api-key",
+        "x-custom-header",
+        "x-trace-id",
+        "sec-ch-ua-mobile",
+        "user-agent",
+        "content-type",
+        "x-client-id",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": [
+        "X-IG-APP-ID",
+        "x-trace-id",
+        "X-B3-TRACEID",
+        "x-csrf-token",
+        "x-platform",
+        "if-none-match",
+        "x-xsrf-token"
+      ],
+      "chrome154": [
+        "if-none-match",
+        "x-csrf-token",
+        "x-xsrf-token",
+        "x-platform",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-ig-app-id",
+        "x-trace-id",
+        "sec-ch-ua-platform",
+        "x-b3-traceid",
+        "user-agent"
+      ]
+    },
+    {
+      "set": ["x-twitter-auth-type", "X-AUTH-TOKEN", "x-forwarded-for", "x-platform"],
+      "chrome154": [
+        "x-auth-token",
+        "x-platform",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "sec-ch-ua-mobile",
+        "x-twitter-auth-type",
+        "user-agent"
+      ]
+    },
+    {
+      "set": ["X-LOCALE", "x-custom-header"],
+      "chrome154": [
+        "x-locale",
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-custom-header"
+      ]
+    },
+    {
+      "set": ["x-custom-header"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-custom-header",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "X-SESSION-ID",
+        "APIKEY",
+        "x-request-id",
+        "x-client-id",
+        "x-timezone",
+        "X-A",
+        "x-locale"
+      ],
+      "chrome154": [
+        "x-request-id",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-a",
+        "sec-ch-ua-mobile",
+        "user-agent",
+        "x-client-id",
+        "apikey",
+        "x-session-id",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "x-app-version",
+        "x-forwarded-for",
+        "x-session-id",
+        "X-AMZ-DATE",
+        "x-requested-with",
+        "x-goog-api-key",
+        "x-platform"
+      ],
+      "chrome154": [
+        "x-platform",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-amz-date",
+        "x-app-version",
+        "x-requested-with",
+        "user-agent",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": [
+        "X-APP-VERSION",
+        "if-none-match",
+        "X-PLATFORM",
+        "X-VERY-LONG-HEADER-NAME-THAT-EXCEEDS-FORTY-EIGHT-BYTES-FOR-SURE",
+        "x-device-id",
+        "x-timezone"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "if-none-match",
+        "x-platform",
+        "sec-ch-ua-platform",
+        "x-device-id",
+        "sec-ch-ua",
+        "x-timezone",
+        "sec-ch-ua-mobile",
+        "x-app-version",
+        "user-agent"
+      ]
+    },
+    {
+      "set": [
+        "x-app-version",
+        "X-VERY-LONG-HEADER-NAME-THAT-EXCEEDS-FORTY-EIGHT-BYTES-FOR-SURE",
+        "x-requested-with",
+        "x-xsrf-token",
+        "x-platform",
+        "x-twitter-auth-type",
+        "x-locale",
+        "if-none-match",
+        "x-goog-api-key"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "if-none-match",
+        "x-platform",
+        "x-xsrf-token",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-twitter-auth-type",
+        "x-app-version",
+        "x-requested-with",
+        "user-agent",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "x-auth-token",
+        "X-API-KEY",
+        "x-request-id",
+        "X-DEVICE-ID",
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-auth-token",
+        "x-request-id",
+        "sec-ch-ua-platform",
+        "x-device-id",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile",
+        "user-agent"
+      ]
+    },
+    {
+      "set": [
+        "x-amz-date",
+        "if-none-match",
+        "x-csrf-token",
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "X-A",
+        "X-DEVICE-ID",
+        "x-requested-with",
+        "x-ig-app-id"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "if-none-match",
+        "x-csrf-token",
+        "sec-ch-ua-platform",
+        "x-device-id",
+        "sec-ch-ua",
+        "x-a",
+        "x-ig-app-id",
+        "sec-ch-ua-mobile",
+        "x-amz-date",
+        "x-requested-with",
+        "user-agent"
+      ]
+    },
+    {
+      "set": ["x-a", "X-TIMEZONE", "x-ig-app-id"],
+      "chrome154": [
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-a",
+        "x-ig-app-id"
+      ]
+    },
+    {
+      "set": [
+        "if-none-match",
+        "x-api-key",
+        "X-GOOG-API-KEY",
+        "content-type",
+        "x-session-id",
+        "X-PLATFORM"
+      ],
+      "chrome154": [
+        "if-none-match",
+        "x-platform",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-api-key",
+        "x-goog-api-key",
+        "user-agent",
+        "content-type",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": ["x-app-version", "x-b3-traceid"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-b3-traceid",
+        "x-app-version",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "x-requested-with",
+        "x-xsrf-token",
+        "apikey",
+        "X-LOCALE",
+        "x-timezone",
+        "x-goog-api-key"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-xsrf-token",
+        "sec-ch-ua",
+        "x-timezone",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-requested-with",
+        "user-agent",
+        "apikey",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "X-ZZ",
+        "x-b3-traceid",
+        "x-csrf-token",
+        "x-a",
+        "X-API-KEY",
+        "x-device-id",
+        "x-goog-api-key",
+        "X-VERY-LONG-HEADER-NAME-THAT-EXCEEDS-FORTY-EIGHT-BYTES-FOR-SURE"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "sec-ch-ua-platform",
+        "x-csrf-token",
+        "x-device-id",
+        "sec-ch-ua",
+        "x-a",
+        "x-api-key",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-b3-traceid",
+        "user-agent",
+        "x-zz"
+      ]
+    },
+    {
+      "set": [
+        "CONTENT-TYPE",
+        "x-ig-app-id",
+        "x-session-id",
+        "x-api-key",
+        "apikey",
+        "X-TIMEZONE",
+        "X-CSRF-TOKEN",
+        "X-A",
+        "x-trace-id",
+        "x-app-version",
+        "authorization"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-csrf-token",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-a",
+        "x-api-key",
+        "x-ig-app-id",
+        "x-trace-id",
+        "sec-ch-ua-mobile",
+        "x-app-version",
+        "user-agent",
+        "content-type",
+        "apikey",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": [
+        "X-SESSION-ID",
+        "apikey",
+        "x-correlation-id",
+        "x-auth-token",
+        "x-request-id",
+        "X-CSRF-TOKEN",
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-requested-with",
+        "x-forwarded-for"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-auth-token",
+        "x-csrf-token",
+        "x-request-id",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "x-requested-with",
+        "user-agent",
+        "apikey",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": [
+        "x-ig-app-id",
+        "x-csrf-token",
+        "X-B3-TRACEID",
+        "x-api-key",
+        "X-CUSTOM-HEADER",
+        "x-forwarded-for",
+        "x-request-id",
+        "content-type"
+      ],
+      "chrome154": [
+        "x-request-id",
+        "x-csrf-token",
+        "sec-ch-ua-platform",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "x-api-key",
+        "x-custom-header",
+        "x-ig-app-id",
+        "sec-ch-ua-mobile",
+        "x-b3-traceid",
+        "user-agent",
+        "content-type"
+      ]
+    },
+    {
+      "set": ["x-api-key"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "X-CLIENT-ID",
+        "CONTENT-TYPE",
+        "x-session-id",
+        "authorization",
+        "x-correlation-id",
+        "x-twitter-auth-type",
+        "x-goog-api-key"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-twitter-auth-type",
+        "user-agent",
+        "content-type",
+        "x-client-id",
+        "x-session-id"
+      ]
+    },
+    {
+      "set": ["x-correlation-id"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-correlation-id",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-timezone", "x-goog-api-key", "authorization", "x-twitter-auth-type"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "sec-ch-ua",
+        "x-timezone",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "x-twitter-auth-type",
+        "user-agent"
+      ]
+    },
+    {
+      "set": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-client-id",
+        "x-device-id",
+        "x-xsrf-token",
+        "X-CUSTOM-HEADER",
+        "x-locale",
+        "x-timezone",
+        "x-correlation-id"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "sec-ch-ua-platform",
+        "x-xsrf-token",
+        "x-device-id",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-custom-header",
+        "sec-ch-ua-mobile",
+        "user-agent",
+        "x-client-id",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-custom-header",
+        "X-TRACE-ID",
+        "x-ig-app-id",
+        "X-CORRELATION-ID",
+        "X-API-KEY",
+        "x-a",
+        "apikey",
+        "x-auth-token"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "x-auth-token",
+        "sec-ch-ua-platform",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "x-custom-header",
+        "x-a",
+        "x-trace-id",
+        "x-api-key",
+        "x-ig-app-id",
+        "sec-ch-ua-mobile",
+        "user-agent",
+        "apikey"
+      ]
+    },
+    {
+      "set": [
+        "x-requested-with",
+        "x-client-id",
+        "x-b3-traceid",
+        "X-AMZ-DATE",
+        "x-zz",
+        "x-correlation-id",
+        "authorization"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-amz-date",
+        "x-b3-traceid",
+        "x-requested-with",
+        "user-agent",
+        "x-zz",
+        "x-client-id"
+      ]
+    },
+    {
+      "set": ["x-session-id", "x-forwarded-for"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-forwarded-for",
+        "x-session-id",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-a", "if-none-match"],
+      "chrome154": [
+        "if-none-match",
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-a",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-platform", "x-locale", "X-REQUESTED-WITH", "x-xsrf-token", "x-zz"],
+      "chrome154": [
+        "x-platform",
+        "sec-ch-ua-platform",
+        "x-xsrf-token",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-requested-with",
+        "user-agent",
+        "x-zz",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "x-auth-token",
+        "authorization",
+        "x-twitter-auth-type",
+        "x-amz-date",
+        "if-none-match",
+        "x-locale",
+        "x-goog-api-key",
+        "x-timezone",
+        "X-API-KEY",
+        "x-correlation-id",
+        "x-b3-traceid"
+      ],
+      "chrome154": [
+        "if-none-match",
+        "authorization",
+        "x-auth-token",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "x-timezone",
+        "x-api-key",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "sec-ch-ua-platform",
+        "x-amz-date",
+        "x-b3-traceid",
+        "x-twitter-auth-type",
+        "user-agent",
+        "x-locale"
+      ]
+    },
+    {
+      "set": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "APIKEY",
+        "X-GOOG-API-KEY",
+        "IF-NONE-MATCH",
+        "x-correlation-id",
+        "x-app-version",
+        "x-auth-token",
+        "x-b3-traceid",
+        "x-amz-date",
+        "x-xsrf-token",
+        "X-REQUEST-ID"
+      ],
+      "chrome154": [
+        "x-very-long-header-name-that-exceeds-forty-eight-bytes-for-sure",
+        "if-none-match",
+        "x-auth-token",
+        "x-xsrf-token",
+        "x-request-id",
+        "x-correlation-id",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "x-goog-api-key",
+        "sec-ch-ua-platform",
+        "x-amz-date",
+        "x-b3-traceid",
+        "x-app-version",
+        "user-agent",
+        "apikey"
+      ]
+    },
+    {
+      "set": ["x-custom-header", "x-app-version"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-app-version",
+        "user-agent",
+        "sec-ch-ua",
+        "x-custom-header",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-app-version"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-app-version",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [],
+      "chrome154": ["sec-ch-ua-platform", "user-agent", "sec-ch-ua", "sec-ch-ua-mobile"]
+    },
+    {
+      "set": ["content-type"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "content-type",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["content-type"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "content-type",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["content-type"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "content-type",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["authorization", "x-api-key"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "user-agent",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["authorization", "content-type", "x-api-key"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "user-agent",
+        "sec-ch-ua",
+        "content-type",
+        "x-api-key",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["authorization"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-api-key"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-requested-with"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-requested-with",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-csrf-token"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "x-csrf-token",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["x-client-id"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "x-client-id",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": ["content-type"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "user-agent",
+        "sec-ch-ua",
+        "content-type",
+        "sec-ch-ua-mobile"
+      ]
+    },
+    {
+      "set": [
+        "authorization",
+        "x-csrf-token",
+        "x-api-key",
+        "x-requested-with",
+        "content-type",
+        "x-client-id"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-csrf-token",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile",
+        "x-requested-with",
+        "user-agent",
+        "content-type",
+        "x-client-id"
+      ]
+    },
+    {
+      "set": [
+        "authorization",
+        "x-csrf-token",
+        "x-api-key",
+        "x-requested-with",
+        "content-type",
+        "x-client-id"
+      ],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-csrf-token",
+        "sec-ch-ua",
+        "x-api-key",
+        "sec-ch-ua-mobile",
+        "x-requested-with",
+        "user-agent",
+        "content-type",
+        "x-client-id"
+      ]
+    },
+    {
+      "set": ["authorization", "x-requested-with"],
+      "chrome154": [
+        "sec-ch-ua-platform",
+        "authorization",
+        "x-requested-with",
+        "user-agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile"
+      ]
+    }
+  ]
+}

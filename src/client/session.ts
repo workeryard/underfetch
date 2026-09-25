@@ -8,7 +8,7 @@
 
 import { acceptable, type Decoders } from '../http/decompress';
 import {
-  headerOrder,
+  requestOrder,
   resourceHeaders,
   resourceWeight,
   type FetchSite,
@@ -209,7 +209,7 @@ export class Session {
       this.#defaults.headers,
       this.#browserHeaders(resource, init?.site),
     );
-    const order = this.#profile && headerOrder(this.#profile, resource);
+    const order = this.#profile && requestOrder(this.#profile, resource, headers.keys());
     const http2 = this.#http2For(resource);
     // A request carrying session headers is a different request, so it is
     // rebuilt rather than mutated — `Request.headers` is not writable.

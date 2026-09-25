@@ -420,11 +420,20 @@ The orders were measured, not written from memory: Edge 153, Chrome 154 and
 Firefox 153 pointed at a local HTTP/2 server that recorded every request's raw header
 order and stream weight (`scripts/capture-headers.ts`). Each navigation order
 agrees with the capture the profiles came from, and Chrome 154 wrote every
-request exactly as Edge 153 did. Two limits. Chromium lays out
-a page's own headers — `authorization`, `x-api-key` — through a hash table, so
-their slot moves with how many there are; one fixed slot, the one most took,
-stands in for that. And no Safari has been measured beyond its page load, so a
-Safari profile keeps its captured order and puts anything else after it.
+request exactly as Edge 153 did.
+
+Chromium has no one place for a fetch()'s own headers — `authorization`,
+`x-api-key` and the like. Blink keeps them in a hash table with
+`user-agent` and the `sec-ch-ua` hints and writes them out in table order,
+so where each lands depends on every name in the set. That table is
+reproduced here from Chromium's source — its rapidhash-based case-folding
+hash, its sizing and its probing — and checked against the browser: it gives
+the order Chrome 154 wrote for every one of 55 captured sets, 40 of them random
+sets of one to twelve headers predicted before they were captured. Firefox is
+simpler: a page's own headers go after `referer`.
+
+No Safari has been measured beyond its page load, so a Safari profile keeps
+its captured order and puts anything else after it.
 
 A browser sends an API call differently from a page load, and the request can
 say which it is:

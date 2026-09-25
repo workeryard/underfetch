@@ -268,6 +268,9 @@ export default {
           resource: (query.get('resource') ?? 'document') as Resource,
           ...(query.get('method') ? { method: query.get('method')! } : {}),
           ...(query.get('json') ? { json: JSON.parse(query.get('json')!) as unknown } : {}),
+          ...(query.get('headers')
+            ? { headers: JSON.parse(query.get('headers')!) as Record<string, string> }
+            : {}),
         });
       } catch (error) {
         const e = error as Error & { permanent?: boolean };
