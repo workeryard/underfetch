@@ -531,11 +531,24 @@ rust-tls/         the rustls fork and its WebAssembly build
 Only needed when `rust-tls/` changes; the output is committed.
 
 ```
-pnpm build:wasm
+make wasm
 ```
 
 Needs a Rust toolchain with the `wasm32-unknown-unknown` target, `wasm-pack`,
 and `clang` — `ring` compiles C for the wasm target.
+
+## Working on it
+
+`make` lists the rest. The ones used most:
+
+```
+make check                       # typecheck, lint, tests
+make dev                         # the dev worker, its wasm cache cleared
+make live AS=chrome              # fingerprints, the case matrix, resumption
+make state AS=chrome             # save a session, restart, load it back
+make fetch URL=https://… PROXY=socks5://host:1080
+make dev-stop
+```
 
 ## Licence
 
