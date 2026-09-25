@@ -6,7 +6,15 @@
  * timeout and the headers, and lets one request override any of them.
  */
 
-import type { Decoders } from '../http/decompress';
+import { acceptable, type Decoders } from '../http/decompress';
+import {
+  headerOrder,
+  resourceHeaders,
+  resourceWeight,
+  type FetchSite,
+  type Resource,
+} from '../fingerprint/order';
+import type { Impersonation } from '../fingerprint/profiles';
 import type { InflaterFactory } from '../http/permessage-deflate';
 import type { Http2Profile } from '../http/h2/connection';
 import type { Dial, Proxy } from '../net/socket';
@@ -48,6 +56,12 @@ export interface SessionOptions extends SessionDefaults {
   tls: TlsFactory;
   /** How to open an HTTP/2 connection, when ALPN settles on one. */
   http2?: Http2Profile | undefined;
+  /**
+   * The browser whose headers go with every request — in its order, and as
+   * it sends them for the kind of request each is. Its HTTP/2 opening
+   * replaces `http2`. The TLS side is `tls`'s business.
+   */
+  impersonate?: Impersonation | undefined;
   /** Decoders beyond gzip and deflate; the runtime supplies these. */
   decoders?: Decoders | undefined;
   /** Reads permessage-deflate on a WebSocket; the runtime supplies it. */
@@ -72,14 +86,28 @@ export interface SessionRequestInit extends RequestInit, BodyOptions, RedirectOp
   connectTimeoutMs?: number | undefined;
   /** Overrides the session's retry policy for this one request. */
   retry?: RetryOptions | number | false | undefined;
+  /**
+   * What the request is, for a session that impersonates: a page load
+   * (`document`, the default) or a script's call to an API (`fetch`), which a
+   * browser sends with different headers, in a different order, at another
+   * priority. Without a profile there is nothing to imitate and it is ignored.
+   */
+  resource?: Resource | undefined;
+  /** For `fetch`: where the calling page stands. Default `same-origin`. */
+  site?: FetchSite | undefined;
 }
 
-/** The session's headers, with anything the request set taking precedence. */
-function merged(defaults: HeadersInit | undefined, request: Request): Headers {
+/**
+ * The request's headers, then the session's, then the browser's: each fills
+ * only what the ones before it left unset.
+ */
+function merged(request: Request, ...layers: (HeadersInit | undefined)[]): Headers {
   const headers = new Headers(request.headers);
-  if (defaults === undefined) return headers;
-  for (const [name, value] of new Headers(defaults)) {
-    if (!headers.has(name)) headers.set(name, value);
+  for (const layer of layers) {
+    if (layer === undefined) continue;
+    for (const [name, value] of new Headers(layer)) {
+      if (!headers.has(name)) headers.set(name, value);
+    }
   }
   return headers;
 }
@@ -88,15 +116,17 @@ export class Session {
   readonly #dial: Dial;
   readonly #tls: TlsFactory;
   readonly #http2: Http2Profile | undefined;
+  readonly #profile: Impersonation | undefined;
   readonly #decoders: Decoders | undefined;
   readonly #inflater: InflaterFactory | undefined;
   readonly #defaults: SessionDefaults;
   readonly #jar: CookieJar | undefined;
 
-  constructor({ dial, tls, http2, decoders, inflater, ...defaults }: SessionOptions) {
+  constructor({ dial, tls, http2, impersonate, decoders, inflater, ...defaults }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
-    this.#http2 = http2;
+    this.#http2 = impersonate?.http2 ?? http2;
+    this.#profile = impersonate;
     this.#decoders = decoders;
     this.#inflater = inflater;
     this.#defaults = defaults;
@@ -118,9 +148,38 @@ export class Session {
     return this.#defaults.proxy;
   }
 
+  /**
+   * The browser's headers for this kind of request, with an `accept-encoding`
+   * cut to what this runtime can decode.
+   */
+  #browserHeaders(resource: Resource, site: FetchSite | undefined): Headers | undefined {
+    if (this.#profile === undefined) return undefined;
+    const headers = new Headers(
+      resourceHeaders(this.#profile, resource, site) as [string, string][],
+    );
+    const offered = headers.get('accept-encoding');
+    if (offered !== null) headers.set('accept-encoding', acceptable(offered, this.#decoders));
+    return headers;
+  }
+
+  /** The HTTP/2 opening for this kind of request: a fetch() weighs less. */
+  #http2For(resource: Resource): Http2Profile | undefined {
+    const weight = this.#profile && resourceWeight(this.#profile, resource);
+    const base = this.#http2;
+    if (weight === undefined || base?.priority === undefined) return base;
+    return { ...base, priority: { ...base.priority, weight } };
+  }
+
   async fetch(input: string | URL | Request, init?: SessionRequestInit): Promise<Response> {
     const request = buildRequest(input, init, this.#defaults.baseUrl);
-    const headers = merged(this.#defaults.headers, request);
+    const resource = init?.resource ?? 'document';
+    const headers = merged(
+      request,
+      this.#defaults.headers,
+      this.#browserHeaders(resource, init?.site),
+    );
+    const order = this.#profile && headerOrder(this.#profile, resource);
+    const http2 = this.#http2For(resource);
     // A request carrying session headers is a different request, so it is
     // rebuilt rather than mutated — `Request.headers` is not writable.
     const outgoing = new Request(request, { headers });
@@ -138,7 +197,8 @@ export class Session {
       fetchOver(one, {
         dial: this.#dial,
         tls: this.#tls,
-        ...(this.#http2 ? { http2: this.#http2 } : {}),
+        ...(http2 ? { http2 } : {}),
+        ...(order ? { headerOrder: order } : {}),
         ...(this.#decoders ? { decoders: this.#decoders } : {}),
         ...(proxy ? { proxy } : {}),
         ...(timeoutMs === undefined ? {} : { timeoutMs }),
@@ -196,8 +256,10 @@ export class Session {
   ): Promise<WebSocketConnection> {
     const target = new URL(url, this.#defaults.baseUrl);
     const headers = new Headers(init.headers);
-    for (const [name, value] of new Headers(this.#defaults.headers)) {
-      if (!headers.has(name) && !NAVIGATION_ONLY.test(name)) headers.set(name, value);
+    for (const layer of [this.#defaults.headers, this.#browserHeaders('document', undefined)]) {
+      for (const [name, value] of new Headers(layer)) {
+        if (!headers.has(name) && !NAVIGATION_ONLY.test(name)) headers.set(name, value);
+      }
     }
     // Cookies are scoped by the http(s) URL the ws(s) one stands for.
     const cookieUrl = new URL(target);

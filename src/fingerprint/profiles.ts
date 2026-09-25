@@ -11,6 +11,7 @@
  * TLS module and the HTTP/2 client take.
  */
 
+import { familyOf, type Family } from './order';
 import { captures } from './browsers';
 import { verbatim } from './extensions';
 import type { Capture } from './capture';
@@ -52,6 +53,13 @@ export interface Impersonation {
    */
   headers: readonly (readonly [string, string])[];
   /**
+   * Which browser engine this is, for what the captures do not hold: the
+   * header order of requests other than a page load, and what a script's
+   * fetch() sends. Left out, a profile's headers keep their own order and
+   * only page loads are imitated. See `order.ts`.
+   */
+  family?: Family | undefined;
+  /**
    * The exact order to write extensions in. Left out, they are shuffled, which
    * is what Chrome does; Firefox and Safari send a fixed order.
    */
@@ -91,6 +99,7 @@ function fromCapture(capture: Capture): Impersonation {
         return body === undefined ? [] : [[type, body]];
       }),
     headers: capture.headers,
+    family: familyOf(capture.source),
     expected: capture.expected,
   };
 }

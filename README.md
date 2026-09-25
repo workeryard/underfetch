@@ -368,10 +368,41 @@ the handshake, and the Akamai string from the HTTP/2 settings:
 Chrome GREASEs and shuffles its extensions, Firefox does neither, Safari
 GREASEs but keeps a fixed order.
 
-A profile also carries the browser's **request headers in the browser's
-order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the rest —
-because a handshake that matches Chrome while the headers say "not a browser"
-fools nobody. Headers a session or a request sets win over the profile's.
+A profile also carries the browser's **request headers, written in the
+browser's order** — `user-agent`, `accept`, `sec-ch-ua`, `sec-fetch-*` and the
+rest — because a handshake that matches Chrome while the headers say "not a
+browser" fools nobody. Headers a session or a request sets win over the
+profile's, and take the slot the browser gives them: `content-length`,
+`content-type`, `origin`, `referer`, `cookie` and the others each go where
+that browser puts them. (`Headers` sorts its names, so this has to be done on
+the wire; until it was, every request went out alphabetically.)
+
+The orders were measured, not written from memory: Edge 153 and Firefox 153
+pointed at a local HTTP/2 server that recorded every request's raw header
+order and stream weight (`scripts/capture-headers.ts`). Each navigation order
+agrees with the capture the profiles came from. Two limits. Chromium lays out
+a page's own headers — `authorization`, `x-api-key` — through a hash table, so
+their slot moves with how many there are; one fixed slot, the one most took,
+stands in for that. And no Safari has been measured beyond its page load, so a
+Safari profile keeps its captured order and puts anything else after it.
+
+A browser sends an API call differently from a page load, and the request can
+say which it is:
+
+```ts
+await session.get('https://api.example.com/v1/me', {
+  resource: 'fetch', // what a page's script sends: fetch() or XHR
+  site: 'same-site', // where the page stands; default same-origin
+  headers: { authorization: `Bearer ${token}` },
+});
+```
+
+A `fetch` goes out as that browser's fetch() does, as measured: `accept: */*`,
+`sec-fetch-mode: cors`, `sec-fetch-dest: empty`, no `upgrade-insecure-requests`
+or `sec-fetch-user`, Chromium's own order for it, and the browser's lower
+priority — `u=1, i` and weight 220 for Chromium, `u=4` and weight 22 for
+Firefox. Safari refuses it with a `ResourceError`: nothing has been measured
+to imitate. The default, `document`, is a page load.
 
 `accept-encoding` is the browser's too — `gzip, deflate, br, zstd` for Chrome
 — wherever the answer can be read. `DecompressionStream` has only gzip and

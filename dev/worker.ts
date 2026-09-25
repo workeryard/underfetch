@@ -11,7 +11,7 @@
 import { profiles, type ProfileName } from '../src/fingerprint/profiles';
 import { fromFingerprints } from '../src/fingerprint/custom';
 import { akamai } from '../src/fingerprint/verify';
-import { Session, type Proxy } from '../src/workers/index';
+import { Session, type Proxy, type Resource } from '../src/workers/index';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
 import { sessionCases } from './cases/session';
@@ -228,7 +228,9 @@ export default {
         timeoutMs: 20_000,
         ...(as ? { impersonate: as } : {}),
         ...(proxy ? { proxy } : {}),
-      }).fetch(url);
+      }).fetch(url, {
+        resource: (query.get('resource') ?? 'document') as Resource,
+      });
       const body = await response.text();
       return Response.json({
         status: response.status,

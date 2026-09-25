@@ -14,6 +14,7 @@
 import { ByteReader, ByteWriter } from '../../net/bytes';
 import { decompressed, type Decoders } from '../decompress';
 import { USER_AGENT } from '../user-agent';
+import { arrange } from '../../fingerprint/order';
 import { Hpack, type Header } from './hpack';
 import {
   encodeFrame,
@@ -85,17 +86,26 @@ function pseudoHeaders(request: Request, url: URL, order: Http2Profile['pseudoHe
 /** Headers that mean nothing in HTTP/2, which forbids them outright. */
 const FORBIDDEN = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade'];
 
-function requestHeaders(request: Request, url: URL, profile: Http2Profile): Header[] {
-  const headers = pseudoHeaders(request, url, profile.pseudoHeaderOrder);
-  if (!request.headers.has('user-agent')) headers.push(['user-agent', USER_AGENT]);
+function requestHeaders(
+  request: Request,
+  url: URL,
+  profile: Http2Profile,
+  length: number | null,
+  order: readonly string[] | undefined,
+): Header[] {
+  const regular: Header[] = [];
+  if (!request.headers.has('user-agent')) regular.push(['user-agent', USER_AGENT]);
   for (const [name, value] of request.headers) {
     const lower = name.toLowerCase();
-    if (FORBIDDEN.includes(lower) || lower === 'host') continue;
+    if (FORBIDDEN.includes(lower) || lower === 'host' || lower === 'content-length') continue;
     // TE is allowed, but only to say `trailers`.
     if (lower === 'te' && value.trim().toLowerCase() !== 'trailers') continue;
-    headers.push([lower, value]);
+    regular.push([lower, value]);
   }
-  return headers;
+  // Browsers state the length of a body they hold, HTTP/2 or not.
+  if (length !== null) regular.push(['content-length', String(length)]);
+  const pseudo = pseudoHeaders(request, url, profile.pseudoHeaderOrder);
+  return [...pseudo, ...(order ? arrange(regular, order) : regular)];
 }
 
 /**
@@ -124,13 +134,15 @@ export interface Http2Options {
   streamBody?: boolean | undefined;
   /** Decoders beyond gzip and deflate; see `Decoders`. */
   decoders?: Decoders | undefined;
+  /** The order to write headers in, as `arrange` takes it; left out, as given. */
+  headerOrder?: readonly string[] | undefined;
 }
 
 export async function http2Fetch(
   socket: Http2Socket,
   request: Request,
   profile: Http2Profile = DEFAULT_PROFILE,
-  { streamBody = false, decoders = {} }: Http2Options = {},
+  { streamBody = false, decoders = {}, headerOrder }: Http2Options = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   // A body already in memory is sent whole, which also tells us up front
@@ -158,7 +170,11 @@ export async function http2Fetch(
     );
   }
 
-  const block = withPriority(hpack.encode(requestHeaders(request, url, profile)), profile.priority);
+  const length = request.body === null || buffered === null ? null : buffered.byteLength;
+  const block = withPriority(
+    hpack.encode(requestHeaders(request, url, profile, length, headerOrder)),
+    profile.priority,
+  );
   const endStream = body === null ? Flags.EndStream : 0;
   const flags = Flags.EndHeaders | endStream | (profile.priority ? Flags.Priority : 0);
   await writer.write(encodeFrame(FrameType.Headers, flags, STREAM, block));

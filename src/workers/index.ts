@@ -17,7 +17,7 @@ import {
 } from '../client/session';
 import type { WebSocketConnection } from '../http/websocket';
 import { verifyProfile, type Verdict } from '../fingerprint/verify';
-import { acceptable, zlibDecoders, type ZlibModule } from '../http/decompress';
+import { zlibDecoders, type ZlibModule } from '../http/decompress';
 import { zlibInflater, type InflateModule } from '../http/permessage-deflate';
 import { impersonating, ticketStore } from '../tls/wasm';
 import type { TicketStore } from '../../rust-tls/pkg/underfetch_tls';
@@ -66,20 +66,6 @@ export const decoders = zlibDecoders(zlib);
 /** permessage-deflate on a WebSocket, from the same `node:zlib`, where there is one. */
 export const inflater = zlibInflater(zlib);
 
-/**
- * The profile's headers, with anything the session set taking precedence.
- * The browser's `accept-encoding` is cut to what this runtime can undo.
- */
-function browserHeaders(as: Impersonation, own: HeadersInit | undefined): Headers {
-  const headers = new Headers(as.headers as [string, string][]);
-  const offered = headers.get('accept-encoding');
-  if (offered !== null) headers.set('accept-encoding', acceptable(offered, decoders));
-  if (own !== undefined) {
-    for (const [name, value] of new Headers(own)) headers.set(name, value);
-  }
-  return headers;
-}
-
 export interface WorkerSessionDefaults extends SessionDefaults {
   /**
    * Whose ClientHello to send: a name from `profiles`, a profile of your own,
@@ -116,11 +102,10 @@ export class Session extends PlainSession {
       decoders,
       inflater,
       tls: impersonating(as, tickets ?? false),
-      ...(as ? { http2: as.http2 } : {}),
-      ...defaults,
       // A browser's headers travel with its handshake. The session's own win
       // over the profile's, and a request's win over both.
-      ...(as ? { headers: browserHeaders(as, defaults.headers) } : {}),
+      impersonate: as,
+      ...defaults,
     });
     this.#as = as;
     this.#name = typeof impersonate === 'string' ? impersonate : undefined;
@@ -265,6 +250,8 @@ export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
 export { profiles } from '../fingerprint/profiles';
 export { FingerprintError, fromFingerprints } from '../fingerprint/custom';
+export { ResourceError } from '../fingerprint/order';
+export type { FetchSite, Resource } from '../fingerprint/order';
 export type { FromFingerprints } from '../fingerprint/custom';
 export type { Impersonation, ProfileName } from '../fingerprint/profiles';
 export type { SessionDefaults, SessionRequestInit, SessionWebSocketInit } from '../client/session';

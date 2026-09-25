@@ -13,6 +13,7 @@ AS    :=
 ONLY  ?= http,tls,session,sites,websocket
 URL   ?= https://httpbin.org/ip
 PROXY ?=
+RESOURCE ?=
 
 # Rust lives in ~/.cargo/bin, which is not on every shell's PATH.
 export PATH := $(HOME)/.cargo/bin:$(PATH)
@@ -108,8 +109,8 @@ live: ## fingerprints, cases and resumption, one after another [AS=name]
 	$(LIVE) cases $(AS_FLAG) --only $(ONLY)
 	$(LIVE) resume --as $(or $(AS),chrome)
 
-fetch: ## one request through the dev worker [URL=] [AS=] [PROXY=]
-	$(LIVE) fetch --url $(URL) $(AS_FLAG) $(if $(PROXY),--proxy $(PROXY))
+fetch: ## one request through the dev worker [URL=] [AS=] [PROXY=] [RESOURCE=fetch]
+	$(LIVE) fetch --url $(URL) $(AS_FLAG) $(if $(PROXY),--proxy $(PROXY)) $(if $(RESOURCE),--resource $(RESOURCE))
 
 clean: dev-stop ## remove the dev server's state and the Rust build
 	rm -rf .wrangler rust-tls/target

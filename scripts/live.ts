@@ -104,6 +104,7 @@ switch (command) {
       as,
       proxy: flags.get('proxy'),
       max: flags.get('max'),
+      resource: flags.get('resource'),
     })) as { status: number; elapsedMs: number; body: string };
     console.log(`${out.status} in ${out.elapsedMs} ms`);
     console.log(out.body);

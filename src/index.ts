@@ -62,6 +62,8 @@ export { Socks4Error, socks4Connect } from './net/socks4';
 export { Socks5Error, socks5Connect } from './net/socks5';
 
 export { encodeExtensions, GREASE, profiles } from './fingerprint/profiles';
+export { arrange, headerOrder, ResourceError, resourceHeaders } from './fingerprint/order';
+export type { Family, FetchSite, Resource } from './fingerprint/order';
 export { FingerprintError, fromFingerprints } from './fingerprint/custom';
 export type { FromFingerprints } from './fingerprint/custom';
 export type { Extension, Impersonation, ProfileName } from './fingerprint/profiles';

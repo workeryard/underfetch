@@ -53,6 +53,12 @@ export interface FetchOverOptions {
    * them. The Workers adapter fills this in.
    */
   decoders?: Decoders | undefined;
+  /**
+   * The order to write headers in: a browser's, from `headerOrder` in
+   * `fingerprint/order.ts`. Left out, they go as `Headers` lists them,
+   * which is alphabetical.
+   */
+  headerOrder?: readonly string[] | undefined;
 }
 
 const defaultPort = (url: URL) => (url.protocol === 'http:' || url.protocol === 'ws:' ? 80 : 443);
@@ -294,7 +300,7 @@ async function attempt(
   tls: TlsFactory,
   signal: AbortSignal,
 ): Promise<Response> {
-  const { http2, streamBody, decoders } = options;
+  const { http2, streamBody, decoders, headerOrder } = options;
   const carrier = await openCarrier(url, options, tls, signal);
   const stop = () => void carrier.socket.close().catch(() => undefined);
 
@@ -302,8 +308,8 @@ async function attempt(
     // ALPN, not guesswork: speaking the wrong one hangs the connection.
     const exchange = () =>
       carrier.protocol === 'h2'
-        ? http2Fetch(carrier, request, http2, { streamBody, decoders })
-        : http1Fetch(carrier, request, { streamBody, decoders });
+        ? http2Fetch(carrier, request, http2, { streamBody, decoders, headerOrder })
+        : http1Fetch(carrier, request, { streamBody, decoders, headerOrder });
     const response = await until(signal, exchange());
     if (response.body === null) {
       stop();

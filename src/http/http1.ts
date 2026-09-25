@@ -10,6 +10,7 @@
 import { ByteReader, ByteWriter } from '../net/bytes';
 import { decompressed, defaultAcceptEncoding, type Decoders } from './decompress';
 import { USER_AGENT } from './user-agent';
+import { arrange } from '../fingerprint/order';
 
 const CRLF = '\r\n';
 const BODY_CHUNK = 16_384;
@@ -49,11 +50,12 @@ function requestHead(
   headers: Headers,
   framing: Framing,
   decoders: Decoders,
+  order: readonly string[] | undefined,
 ): string {
   const path = `${url.pathname}${url.search}`;
   const lines = [`${method} ${path} HTTP/1.1`, `Host: ${url.host}`];
   if (!headers.has('user-agent')) lines.push(`User-Agent: ${USER_AGENT}`);
-  for (const [name, value] of headers) {
+  for (const [name, value] of order ? arrange(headers, order) : headers) {
     if (hopByHop(name)) continue;
     if (name.toLowerCase() === 'host' || name.toLowerCase() === 'content-length') continue;
     lines.push(`${name}: ${value}`);
@@ -181,6 +183,8 @@ export interface Http1Options {
   streamBody?: boolean | undefined;
   /** Decoders beyond gzip and deflate; see `Decoders`. */
   decoders?: Decoders | undefined;
+  /** The order to write headers in, as `arrange` takes it; left out, as given. */
+  headerOrder?: readonly string[] | undefined;
 }
 
 /**
@@ -191,13 +195,20 @@ export interface Http1Options {
 export async function http1Fetch(
   socket: Http1Socket,
   request: Request,
-  { streamBody = false, decoders = {} }: Http1Options = {},
+  { streamBody = false, decoders = {}, headerOrder }: Http1Options = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const writer = new ByteWriter(socket.writable);
 
   if (streamBody && request.body !== null) {
-    const head = requestHead(url, request.method, request.headers, 'chunked', decoders);
+    const head = requestHead(
+      url,
+      request.method,
+      request.headers,
+      'chunked',
+      decoders,
+      headerOrder,
+    );
     await writer.write(new TextEncoder().encode(head));
     await writeChunked(writer, request.body);
   } else {
@@ -210,6 +221,7 @@ export async function http1Fetch(
       request.headers,
       body?.byteLength ?? null,
       decoders,
+      headerOrder,
     );
     await writer.write(new TextEncoder().encode(head));
     if (body && body.byteLength > 0) await writer.write(body);

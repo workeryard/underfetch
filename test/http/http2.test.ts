@@ -1,79 +1,16 @@
-import * as zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { zlibDecoders } from '../../src/http/decompress';
 import { Hpack } from '../../src/http/h2/hpack';
 import { http2Fetch, DEFAULT_PROFILE } from '../../src/http/h2/connection';
 import {
   decodeSettings,
   encodeFrame,
-  encodeSettings,
   Flags,
   FrameType,
   Http2Error,
   PREFACE,
   Setting,
 } from '../../src/http/h2/frames';
-import type { Http2Socket } from '../../src/http/h2/connection';
-
-/** Splits a stream of frames the way a peer would read them. */
-function framesIn(
-  written: number[],
-): { type: number; flags: number; stream: number; payload: Uint8Array }[] {
-  const data = new Uint8Array(written);
-  const view = new DataView(data.buffer);
-  const out = [];
-  let at = PREFACE.length; // the preface leads and is not a frame
-  while (at + 9 <= data.length) {
-    const length = (data[at]! << 16) | view.getUint16(at + 1);
-    out.push({
-      type: data[at + 3]!,
-      flags: data[at + 4]!,
-      stream: view.getUint32(at + 5) & 0x7fffffff,
-      payload: data.subarray(at + 9, at + 9 + length),
-    });
-    at += 9 + length;
-  }
-  return out;
-}
-
-const serverHeaders = (headers: readonly (readonly [string, string])[], flags: number) =>
-  encodeFrame(FrameType.Headers, Flags.EndHeaders | flags, 1, new Hpack().encode(headers));
-
-function socketOf(answer: Uint8Array[]): { socket: Http2Socket; written: number[] } {
-  const written: number[] = [];
-  return {
-    socket: {
-      readable: new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const frame of answer) controller.enqueue(frame);
-          controller.close();
-        },
-      }),
-      writable: new WritableStream<Uint8Array>({
-        write(chunk) {
-          written.push(...chunk);
-        },
-      }),
-    },
-    written,
-  };
-}
-
-const SETTINGS = encodeFrame(
-  FrameType.Settings,
-  0,
-  0,
-  encodeSettings([[Setting.MaxFrameSize, 16384]]),
-);
-const OK = serverHeaders(
-  [
-    [':status', '200'],
-    ['content-type', 'application/json'],
-  ],
-  0,
-);
-const data = (text: string, end = true) =>
-  encodeFrame(FrameType.Data, end ? Flags.EndStream : 0, 1, new TextEncoder().encode(text));
+import { data, framesIn, OK, serverHeaders, SETTINGS, socketOf } from './h2-peer';
 
 describe('http2', () => {
   it('opens with the preface, its settings, and a window update', async () => {
@@ -117,19 +54,6 @@ describe('http2', () => {
     expect(decoded).toContainEqual(['authorization', 'Bearer sk']);
   });
 
-  it('names itself when nobody set a user-agent, and only then', async () => {
-    const sentHeaders = async (init?: RequestInit) => {
-      const { socket, written } = socketOf([SETTINGS, OK, data('{}')]);
-      await (await http2Fetch(socket, new Request('https://example.com/', init))).text();
-      const block = framesIn(written).find((f) => f.type === FrameType.Headers);
-      return new Hpack().decode(block!.payload).filter(([name]) => name === 'user-agent');
-    };
-    expect(await sentHeaders()).toEqual([['user-agent', 'underfetch/0.1']]);
-    expect(await sentHeaders({ headers: { 'user-agent': 'my-worker/1.0' } })).toEqual([
-      ['user-agent', 'my-worker/1.0'],
-    ]);
-  });
-
   it('acknowledges the server settings', async () => {
     const { socket, written } = socketOf([SETTINGS, OK, data('{}')]);
     await (await http2Fetch(socket, new Request('https://example.com/'))).text();
@@ -169,27 +93,6 @@ describe('http2', () => {
     expect(response.headers.get('content-type')).toBe('text/plain');
     expect(response.headers.getSetCookie()).toEqual(['a=1', 'b=2']);
     expect(response.body).toBeNull();
-  });
-
-  it('undoes brotli with a decoder the runtime supplies', async () => {
-    const packed = zlib.brotliCompressSync('{"ok":true}');
-    const { socket } = socketOf([
-      SETTINGS,
-      serverHeaders(
-        [
-          [':status', '200'],
-          ['content-encoding', 'br'],
-        ],
-        0,
-      ),
-      encodeFrame(FrameType.Data, Flags.EndStream, 1, new Uint8Array(packed)),
-    ]);
-    const response = await http2Fetch(socket, new Request('https://example.com/'), undefined, {
-      decoders: zlibDecoders(zlib),
-    });
-
-    expect(response.headers.get('content-encoding')).toBeNull();
-    expect(await response.json()).toEqual({ ok: true });
   });
 
   it('waits past an informational response for the real one', async () => {
