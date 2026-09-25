@@ -49,7 +49,7 @@ export interface ProxyFetchOptions {
   decoders?: Decoders | undefined;
 }
 
-const defaultPort = (url: URL) => (url.protocol === 'http:' ? 80 : 443);
+const defaultPort = (url: URL) => (url.protocol === 'http:' || url.protocol === 'ws:' ? 80 : 443);
 
 /**
  * Closes the tunnel once the answer has been read to the end, cancelled, or
@@ -124,20 +124,37 @@ export async function proxyFetch(request: Request, options: ProxyFetchOptions): 
     throw new TypeError(`cannot proxy ${url.protocol} requests`);
   }
   const limit = deadline(options.signal ?? request.signal, options.timeoutMs);
+  // Only while the request can be sent again: a handshake fails before any
+  // body is read, but a caller's stream is not ours to assume unread.
+  return remedied(
+    options,
+    limit.signal,
+    (tls) => attempt(request, url, options, tls, limit.signal),
+    () => !request.bodyUsed,
+  );
+}
 
-  // Each failure a second connection can fix has one remedy, tried once, so
-  // this ends after three attempts at most.
+/**
+ * Runs `once` with a TLS factory, and again when it fails in a way a second
+ * connection can fix. Each failure has one remedy, tried once, so this ends
+ * after three attempts at most. `again` says whether trying again is still
+ * possible at all.
+ */
+export async function remedied<T>(
+  options: Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains' | 'http2'>,
+  signal: AbortSignal,
+  once: (tls: TlsFactory) => Promise<T>,
+  again: () => boolean = () => true,
+): Promise<T> {
   const remedies: TlsOptions = {};
   for (;;) {
     let last: TlsSession | undefined;
     const recording: TlsFactory = (hostname, alpn) =>
       (last = options.tls(hostname, alpn, { ...remedies }));
     try {
-      return await attempt(request, url, options, recording, limit.signal);
+      return await once(recording);
     } catch (error) {
-      // Only while the request can be sent again: a handshake fails before
-      // any body is read, but a caller's stream is not ours to assume unread.
-      if (request.bodyUsed) throw error;
+      if (!again()) throw error;
       if (unverifiableSignature(error) && !remedies.verifiableSignatures) {
         remedies.verifiableSignatures = true;
         continue;
@@ -147,7 +164,7 @@ export async function proxyFetch(request: Request, options: ProxyFetchOptions): 
         options.completeChains !== false &&
         remedies.intermediates === undefined
       ) {
-        const found = await completeChain(last, options, limit.signal);
+        const found = await completeChain(last, options, signal);
         if (found.length > 0) {
           remedies.intermediates = found;
           continue;
@@ -164,7 +181,7 @@ export async function proxyFetch(request: Request, options: ProxyFetchOptions): 
  */
 async function completeChain(
   session: TlsSession | undefined,
-  options: ProxyFetchOptions,
+  options: Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'http2'>,
   signal: AbortSignal,
 ): Promise<Uint8Array[]> {
   const presented = session?.presentedChain?.();
@@ -184,42 +201,79 @@ async function completeChain(
   return chaseIssuers(decodeCertificates(presented), fetchCertificate).catch(() => []);
 }
 
+/** A connection ready for HTTP: through the proxy, and through TLS for https. */
+export interface Carrier {
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  /** What ALPN settled on; undefined for plain http. */
+  protocol: string | undefined;
+  /** The TCP socket underneath, which is what closing means. */
+  socket: ByteSocket;
+  /** Stops `signal` from closing the socket, for a connection that outlives it. */
+  detach: () => void;
+}
+
+/**
+ * Dials, tunnels through the proxy, and for https completes a TLS handshake
+ * offering `alpn`. `signal` closes the socket, which is what actually
+ * unblocks a read that is going nowhere; until `detach`, it stays wired.
+ */
+export async function openCarrier(
+  url: URL,
+  { dial, proxy }: Pick<ProxyFetchOptions, 'dial' | 'proxy'>,
+  tls: TlsFactory,
+  signal: AbortSignal,
+  alpn?: string,
+): Promise<Carrier> {
+  const port = url.port === '' ? defaultPort(url) : Number(url.port);
+  const entry = proxy ?? { hostname: url.hostname, port };
+  const socket = await until(signal, dial(entry.hostname, entry.port));
+  const stop = () => void socket.close().catch(() => undefined);
+  signal.addEventListener('abort', stop, { once: true });
+  const detach = () => signal.removeEventListener('abort', stop);
+
+  try {
+    const setup = async (): Promise<Carrier> => {
+      const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
+      // Plain http needs no session; https gets one that checks the
+      // certificate against the target's name, which the proxy never sees.
+      if (url.protocol === 'http:' || url.protocol === 'ws:') {
+        return { ...tunnel, protocol: undefined, socket, detach };
+      }
+      const carrier = await tlsTunnel(tunnel, tls(url.hostname, alpn));
+      return { ...carrier, socket, detach };
+    };
+    return await until(signal, setup());
+  } catch (error) {
+    stop();
+    throw error;
+  }
+}
+
 /** One connection: dial, tunnel, TLS, and the request over whichever HTTP. */
 async function attempt(
   request: Request,
   url: URL,
-  { dial, proxy, http2, streamBody, decoders }: ProxyFetchOptions,
+  options: ProxyFetchOptions,
   tls: TlsFactory,
   signal: AbortSignal,
 ): Promise<Response> {
-  const port = url.port === '' ? defaultPort(url) : Number(url.port);
-  const entry = proxy ?? { hostname: url.hostname, port };
-  const socket = await until(signal, dial(entry.hostname, entry.port));
-  // Closing the socket is what actually unblocks a read that is going nowhere,
-  // so the deadline is wired to it and not only to the promise we return.
-  const stop = () => void socket.close().catch(() => undefined);
-  signal.addEventListener('abort', stop, { once: true });
+  const { http2, streamBody, decoders } = options;
+  const carrier = await openCarrier(url, options, tls, signal);
+  const stop = () => void carrier.socket.close().catch(() => undefined);
 
   try {
-    const setup = async () => {
-      const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
-      // Plain http needs no session; https gets one that checks the
-      // certificate against the target's name, which the proxy never sees.
-      if (url.protocol === 'http:') return http1Fetch(tunnel, request, { streamBody, decoders });
-
-      const carrier = await tlsTunnel(tunnel, tls(url.hostname));
-      // ALPN, not guesswork: speaking the wrong one hangs the connection.
-      return carrier.protocol === 'h2'
+    // ALPN, not guesswork: speaking the wrong one hangs the connection.
+    const exchange = () =>
+      carrier.protocol === 'h2'
         ? http2Fetch(carrier, request, http2, { streamBody, decoders })
         : http1Fetch(carrier, request, { streamBody, decoders });
-    };
-
-    const response = await until(signal, setup());
+    const response = await until(signal, exchange());
     if (response.body === null) {
       stop();
       return response;
     }
-    return new Response(closingWhenDone(response.body, socket), response);
+    return new Response(closingWhenDone(response.body, carrier.socket), response);
   } catch (error) {
     stop();
     throw error;
