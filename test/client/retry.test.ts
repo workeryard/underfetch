@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { withRetry } from '../../src/client/retry';
+import { DialError } from '../../src/net/socket';
 
 /**
  * A sender that answers from a script and records what it was asked. Each
@@ -88,6 +89,21 @@ describe('retry', () => {
     await expect(
       withRetry(new Request('https://e.com/'), server.send, { ...quick, limit: 1 }),
     ).rejects.toThrow(/connection refused/);
+  });
+
+  it('does not retry a connection refused for good', async () => {
+    const server = sender([() => new DialError('blocked', true), () => status(200)()]);
+    await expect(withRetry(new Request('https://e.com/'), server.send, quick)).rejects.toThrow(
+      /blocked/,
+    );
+    expect(server.calls()).toBe(1);
+  });
+
+  it('retries a connection that failed for now', async () => {
+    const server = sender([() => new DialError('reset'), () => status(200)()]);
+    const response = await withRetry(new Request('https://e.com/'), server.send, quick);
+    expect(response.status).toBe(200);
+    expect(server.calls()).toBe(2);
   });
 
   it('does not retry an abort, which is the caller changing their mind', async () => {

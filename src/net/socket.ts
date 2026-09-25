@@ -13,6 +13,21 @@ export interface ByteSocket {
   close(): Promise<void>;
 }
 
+/**
+ * A connection that could not be opened. `permanent` says trying again will
+ * not help, so a retry should not spend another connection on it.
+ */
+export class DialError extends Error {
+  override name = 'DialError';
+  constructor(
+    message: string,
+    readonly permanent = false,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
 /** Opens a plain TCP connection. The runtime decides how. */
 export type Dial = (hostname: string, port: number) => Promise<ByteSocket>;
 

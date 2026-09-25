@@ -81,8 +81,10 @@ export async function withRetry(
       response = await send(attempt());
     } catch (error) {
       lastError = error;
-      // An abort is the caller changing their mind, not a failure to retry.
+      // An abort is the caller changing their mind, not a failure to retry;
+      // a permanent refusal will only be refused again.
       if (error instanceof Error && error.name === 'AbortError') throw error;
+      if ((error as { permanent?: unknown } | null)?.permanent === true) throw error;
     }
 
     if (response !== undefined && !settings.statusCodes.includes(response.status)) {

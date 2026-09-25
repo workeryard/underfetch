@@ -25,6 +25,24 @@ hand. That is what this is.
 The proxy is optional. Without one, requests still leave off a raw socket
 rather than through `fetch`, which is enough to drop the `cf-*` headers.
 
+**But not to a site behind Cloudflare.** A deployed Worker may not open a TCP
+socket to Cloudflare's own IP ranges — [the platform blocks
+it](https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/) — and
+that is where every site served through Cloudflare lives, `example.com`
+included. Such a request fails at once with a `DialError` that says so, and is
+not retried; through a proxy it works, since the socket then goes to the
+proxy. `wrangler dev` does not enforce the block, so only a deployment shows
+it. Measured from a deployed Worker on 2026-09-25: every case in the live
+matrix passes but the seven whose target is on Cloudflare, and `example.com`,
+for one, loads through a SOCKS5 proxy.
+
+Two more limits come from the platform rather than from here. Each connection
+counts against the subrequests one invocation may make — a redirect, a retry,
+a fetched intermediate and a WebSocket each open one — so a Worker making many
+requests per invocation runs out sooner than it would with `fetch`, which
+reuses connections. And requests leave from Cloudflare's addresses unless a
+proxy says otherwise; some sites limit those (Google answered 429).
+
 ## Why TLS is done here
 
 `connect()` reaches a proxy, and `startTls({ expectedServerHostname })` looks

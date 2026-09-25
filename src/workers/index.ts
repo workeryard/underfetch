@@ -31,22 +31,58 @@ import {
   toBase64,
   type SessionState,
 } from './state';
-import type { ByteSocket, Dial } from '../net/socket';
+import { DialError, type ByteSocket, type Dial } from '../net/socket';
 
 /**
  * Opens a plain TCP connection. TLS is never asked of the platform: its own
  * upgrade cannot verify a certificate for a host other than the one dialled,
  * which is exactly what a tunnelled request needs.
  */
-export const dial: Dial = (hostname, port) => {
+export const dial: Dial = async (hostname, port) => {
   const socket = connect({ hostname, port });
+  try {
+    await socket.opened;
+  } catch (error) {
+    throw refused(hostname, port, error);
+  }
   const wrapped: ByteSocket = {
     readable: socket.readable,
     writable: socket.writable,
     close: () => socket.close(),
   };
-  return Promise.resolve(wrapped);
+  return wrapped;
 };
+
+/**
+ * Why a connection could not be made, in words a caller can act on. A
+ * deployed Worker may not open a TCP socket to Cloudflare's own addresses,
+ * so a site served through Cloudflare cannot be reached from a Worker
+ * without a proxy between them. `wrangler dev` does not enforce this;
+ * production does.
+ *
+ * Production refuses it with "proxy request failed, cannot connect to the
+ * specified address. It looks like you might be trying to connect to a
+ * HTTP-based service — consider using fetch instead" (seen 2026-09-25). The
+ * first half is also what any unreachable address gets, so only the second
+ * marks the Cloudflare block, and only that is final: anything else may work
+ * on another try. A socket read without awaiting `opened` fails with "Stream
+ * was cancelled." instead.
+ */
+function refused(hostname: string, port: number, error: unknown): DialError {
+  const said = error instanceof Error ? error.message : String(error);
+  if (/HTTP-based service|stream was cancelled/i.test(said)) {
+    return new DialError(
+      `could not connect to ${hostname}:${port}: a Worker may not open TCP connections to ` +
+        "Cloudflare's own IP ranges, which is where a site behind Cloudflare lives. " +
+        'Reach it through a proxy (the `proxy` option).',
+      true,
+      { cause: error },
+    );
+  }
+  return new DialError(`could not connect to ${hostname}:${port}: ${said}`, false, {
+    cause: error,
+  });
+}
 
 /**
  * The `node:zlib` a Worker carries on a recent compatibility date
@@ -258,4 +294,5 @@ export type { SessionDefaults, SessionRequestInit, SessionWebSocketInit } from '
 export { WebSocketConnection, WebSocketError } from '../http/websocket';
 export type { WebSocketClose, WebSocketMessage } from '../http/websocket';
 export { WebSocketRefused } from '../client/websocket';
+export { DialError } from '../net/socket';
 export type { HttpProxy, HttpsProxy, Proxy, Socks4Proxy, Socks5Proxy } from '../net/socket';

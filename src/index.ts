@@ -49,6 +49,7 @@ export type { TlsFactory, TlsSession } from './tls/tunnel';
 export { ByteReader, ByteWriter } from './net/bytes';
 export { HttpConnectError, httpConnect } from './net/http-connect';
 export { tunnelThrough } from './net/proxy';
+export { DialError } from './net/socket';
 export type {
   ByteSocket,
   Dial,
