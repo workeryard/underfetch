@@ -24,8 +24,11 @@ export class FingerprintError extends Error {
   override name = 'FingerprintError';
 }
 
-/** Post-quantum hybrids: offered without a key share, they make servers ask again. */
-const POST_QUANTUM = [0x11ec, 0x6399];
+/**
+ * Kyber's draft hybrid, which Chrome 124 to 130 offered: nothing here can
+ * make it, and offered without a key share it makes servers ask again.
+ */
+const UNMAKEABLE = [0x6399];
 /** Extensions only a resumed session sends. */
 const RESUMPTION_ONLY = [0x0029];
 /** Bodies we can write when the base profile has none to lend. */
@@ -110,7 +113,7 @@ export async function fromFingerprints(
     throw new FingerprintError(`only uncompressed points can be offered, not ${formatField}`);
   }
 
-  const groups = numbers(groupField).filter((g) => !POST_QUANTUM.includes(g));
+  const groups = numbers(groupField).filter((g) => !UNMAKEABLE.includes(g));
   if (!groups.includes(0x001d)) {
     throw new FingerprintError('the groups must include X25519, the one key share sent');
   }

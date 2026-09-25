@@ -43,6 +43,13 @@ export interface Impersonation {
    */
   namedGroups?: readonly number[] | undefined;
   /**
+   * The groups to send a key share for, as the browser does — X25519MLKEM768
+   * and X25519, and P-256 too for Firefox. Only groups named above count, and
+   * only these three can be made; left out, a share for the first group the
+   * TLS library leads with.
+   */
+  keyShares?: readonly number[] | undefined;
+  /**
    * What the browser sends with every request, in its order. A handshake that
    * matches Chrome while the headers say "not a browser" fools nobody, and
    * headers are the first thing most checks read.
@@ -91,6 +98,7 @@ function fromCapture(capture: Capture): Impersonation {
     signatureSchemes: capture.signatureSchemes,
     greaseNamedGroup: capture.greaseNamedGroup,
     namedGroups: capture.namedGroups,
+    keyShares: capture.keyShares,
     // Chrome shuffles; a fixed order would itself give it away.
     extensionOrder: capture.shuffled ? undefined : capture.extensions,
     extensions: () =>

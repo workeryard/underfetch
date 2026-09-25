@@ -6,6 +6,8 @@
 //! it. This crate puts rustls behind a small state machine instead: JavaScript
 //! owns the socket and pumps bytes through, and nothing here does any I/O.
 
+mod pq;
+
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{
     ResolvesClientCert, ClientSessionStore, Resumption, Tls12ClientSessionValue,
@@ -418,6 +420,7 @@ impl TlsClient {
         intermediates: Option<Vec<u8>>,
         verifiable_signatures: Option<bool>,
         tickets: Option<u32>,
+        key_shares: Option<Vec<u16>>,
     ) -> Result<TlsClient, JsValue> {
         let shared = tickets.and_then(|id| STORES.with(|stores| stores.borrow().get(&id).cloned()));
         let verifier = match &shared {
@@ -433,7 +436,30 @@ impl TlsClient {
             presented: Arc::new(Mutex::new(Vec::new())),
         };
 
-        let mut config = ClientConfig::builder()
+        // A browser that leads with X25519MLKEM768 gets it, first, so rustls
+        // makes it the key share and sends plain X25519 beside it. Only a
+        // profile naming the group asks for it: the rest keep rustls' own.
+        let post_quantum = named_groups
+            .as_ref()
+            .is_some_and(|groups| groups.contains(&u16::from(NamedGroup::X25519MLKEM768)));
+        // The key shares the browser sent, where its capture says: a P-256 one
+        // after X25519, as Firefox sends, needs the group that makes three.
+        let p256_share = key_shares
+            .as_ref()
+            .is_some_and(|shares| shares.contains(&u16::from(NamedGroup::secp256r1)));
+        let mut provider = rustls::crypto::ring::default_provider();
+        let lead = match (post_quantum, p256_share) {
+            (true, true) => Some(pq::X25519MLKEM768_THEN_P256),
+            (true, false) => Some(pq::X25519MLKEM768),
+            (false, true) => Some(pq::X25519_THEN_P256),
+            (false, false) => None,
+        };
+        if let Some(lead) = lead {
+            provider.kx_groups.insert(0, lead);
+        }
+        let mut config = ClientConfig::builder_with_provider(Arc::new(provider))
+            .with_safe_default_protocol_versions()
+            .map_err(|error| fail("could not configure TLS", error))?
             .dangerous()
             .with_custom_certificate_verifier(verifier.clone())
             .with_no_client_auth();
@@ -488,6 +514,16 @@ impl TlsClient {
         // The ClientHello was written above; its server's answer is checked
         // in `receive`, which puts this connection's context in place first.
         Ok(TlsClient { conn, verifier, context })
+    }
+
+    /// The key exchange group the handshake settled on, as its TLS number —
+    /// 0x11ec for X25519MLKEM768, 0x001d for X25519. Meaningful once the
+    /// handshake is done.
+    #[wasm_bindgen(js_name = keyExchangeGroup)]
+    pub fn key_exchange_group(&self) -> Option<u16> {
+        self.conn
+            .negotiated_key_exchange_group()
+            .map(|group| u16::from(group.name()))
     }
 
     /// Whether this connection resumed an earlier session rather than doing

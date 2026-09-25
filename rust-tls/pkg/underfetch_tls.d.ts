@@ -45,6 +45,12 @@ export class TlsClient {
      */
     close(): void;
     /**
+     * The key exchange group the handshake settled on, as its TLS number —
+     * 0x11ec for X25519MLKEM768, 0x001d for X25519. Meaningful once the
+     * handshake is done.
+     */
+    keyExchangeGroup(): number | undefined;
+    /**
      * A client that will accept only a certificate valid for `hostname`,
      * whatever address the underlying socket was opened to.
      *
@@ -54,7 +60,7 @@ export class TlsClient {
      * out and rustls makes its own choices, which are safe and instantly
      * recognisable as rustls.
      */
-    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null, tickets?: number | null);
+    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null, tickets?: number | null, key_shares?: Uint16Array | null);
     /**
      * Ciphertext waiting to go out on the socket. Empty when there is none.
      */
@@ -103,7 +109,8 @@ export interface InitOutput {
     readonly ticketstore_new: (a: number) => void;
     readonly tlsclient_close: (a: number) => void;
     readonly tlsclient_handshaking: (a: number) => number;
-    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => void;
+    readonly tlsclient_keyExchangeGroup: (a: number) => number;
+    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number) => void;
     readonly tlsclient_outgoing: (a: number, b: number) => void;
     readonly tlsclient_plaintext: (a: number, b: number) => void;
     readonly tlsclient_presentedChain: (a: number, b: number) => void;

@@ -123,6 +123,16 @@ export class TlsClient {
         return ret !== 0;
     }
     /**
+     * The key exchange group the handshake settled on, as its TLS number —
+     * 0x11ec for X25519MLKEM768, 0x001d for X25519. Meaningful once the
+     * handshake is done.
+     * @returns {number | undefined}
+     */
+    keyExchangeGroup() {
+        const ret = wasm.tlsclient_keyExchangeGroup(this.__wbg_ptr);
+        return ret === 0xFFFFFF ? undefined : ret;
+    }
+    /**
      * A client that will accept only a certificate valid for `hostname`,
      * whatever address the underlying socket was opened to.
      *
@@ -142,8 +152,9 @@ export class TlsClient {
      * @param {Uint8Array | null} [intermediates]
      * @param {boolean | null} [verifiable_signatures]
      * @param {number | null} [tickets]
+     * @param {Uint16Array | null} [key_shares]
      */
-    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets) {
+    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets, key_shares) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
@@ -162,7 +173,9 @@ export class TlsClient {
             var len6 = WASM_VECTOR_LEN;
             var ptr7 = isLikeNone(intermediates) ? 0 : passArray8ToWasm0(intermediates, wasm.__wbindgen_export3);
             var len7 = WASM_VECTOR_LEN;
-            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0);
+            var ptr8 = isLikeNone(key_shares) ? 0 : passArray16ToWasm0(key_shares, wasm.__wbindgen_export3);
+            var len8 = WASM_VECTOR_LEN;
+            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0, ptr8, len8);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);

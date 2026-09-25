@@ -26,6 +26,8 @@ export interface ClientHello {
   groups?: number[] | undefined;
   /** EC point formats, the last field of JA3. */
   pointFormats?: number[] | undefined;
+  /** The key shares sent, as group and share length; neither JA3 nor JA4 reads them. */
+  keyShares?: { group: number; length: number }[] | undefined;
 }
 
 const isGrease = (value: number) => (GREASE as readonly number[]).includes(value);
@@ -60,6 +62,7 @@ export function parseClientHello(record: Uint8Array): ClientHello {
   let hasServerName = false;
   const groups: number[] = [];
   const pointFormats: number[] = [];
+  const keyShares: { group: number; length: number }[] = [];
 
   while (at + 4 <= end) {
     const type = view.getUint16(at);
@@ -84,10 +87,26 @@ export function parseClientHello(record: Uint8Array): ClientHello {
       for (let i = 0; i < listBytes; i += 2) groups.push(view.getUint16(body + 2 + i));
     } else if (type === 0x000b) {
       for (let i = 0; i < record[body]!; i++) pointFormats.push(record[body + 1 + i]!);
+    } else if (type === 0x0033) {
+      let cursor = body + 2;
+      while (cursor + 4 <= body + length) {
+        const share = { group: view.getUint16(cursor), length: view.getUint16(cursor + 2) };
+        keyShares.push(share);
+        cursor += 4 + share.length;
+      }
     }
     at = body + length;
   }
-  return { ciphers, extensions, signatureSchemes, alpn, hasServerName, groups, pointFormats };
+  return {
+    ciphers,
+    extensions,
+    signatureSchemes,
+    alpn,
+    hasServerName,
+    groups,
+    pointFormats,
+    keyShares,
+  };
 }
 
 const sha256 = async (text: string) => {

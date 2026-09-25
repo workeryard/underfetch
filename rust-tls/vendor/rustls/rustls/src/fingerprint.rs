@@ -72,6 +72,20 @@ impl Fingerprint {
         out
     }
 
+    /// FORK: the GREASE group BoringSSL also sends a key share for — the
+    /// GREASE value at the head of the named groups, whichever list names
+    /// them. BoringSSL sends it first, one byte long; Chrome and Safari do.
+    pub(crate) fn grease_key_share(&self) -> Option<NamedGroup> {
+        if !self.grease_named_group {
+            return None;
+        }
+        match self.named_groups.first() {
+            Some(&first) if is_grease(first) => Some(NamedGroup::Unknown(first)),
+            Some(_) => None,
+            None => self.named_group(),
+        }
+    }
+
     pub(crate) fn named_group(&self) -> Option<NamedGroup> {
         match self.grease_named_group {
             true => Some(NamedGroup::Unknown(GREASE[0])),

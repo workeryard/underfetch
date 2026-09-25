@@ -52,6 +52,7 @@ interface RawExtension {
   alpn_list?: string[];
   sig_hash_algs?: number[];
   supported_groups?: (number | string)[];
+  key_shares?: { group: number | string; length?: number }[];
   record_size_limit?: number;
 }
 
@@ -81,7 +82,10 @@ async function text(url: string): Promise<string> {
 }
 
 /** X25519MLKEM768 and X25519Kyber768Draft00, which the TLS module cannot make. */
-const POST_QUANTUM = [0x11ec, 0x6399];
+// X25519Kyber768Draft00, which Chrome 124 to 130 offered. It predates ML-KEM
+// as standardised and nothing here can make it. X25519MLKEM768 (0x11ec) can
+// be made now, so it stays.
+const UNMAKEABLE = [0x6399];
 
 const grease = (value: number | string) => (value === 'GREASE' ? GREASE[0] : Number(value));
 
@@ -159,6 +163,7 @@ async function convert(
   const find = (type: string) => kept.find((e) => e.type === type);
   const alpsExt = find('application_settings') ?? find('application_settings_new');
   const groups = find('supported_groups')?.supported_groups ?? [];
+  const shares = (find('keyshare')?.key_shares ?? []).map((share) => grease(share.group));
 
   const frames = sig.signature.http2.frames;
   const settings = frames.find((f) => f.frame_type === 'SETTINGS')?.settings ?? [];
@@ -195,10 +200,13 @@ async function convert(
     ciphers,
     signatureSchemes,
     greaseNamedGroup: groups[0] === 'GREASE',
-    // Named, but never the post-quantum hybrids: a group advertised without a
-    // key share invites a HelloRetryRequest for it, and nearly every server
-    // prefers these, so offering one we cannot make fails the handshake.
-    namedGroups: groups.map(grease).filter((group) => !POST_QUANTUM.includes(group)),
+    // Never a group we cannot make: advertised without a key share, it invites
+    // a HelloRetryRequest for it, and nearly every server prefers the
+    // post-quantum ones, so offering one fails the handshake.
+    namedGroups: groups.map(grease).filter((group) => !UNMAKEABLE.includes(group)),
+    // Which groups the browser sent a key share for. Firefox sends P-256
+    // beside the other two, which the TLS module then sends and answers too.
+    keyShares: shares.filter((group) => !UNMAKEABLE.includes(group)),
     extensions,
     shuffled: shuffles(browser, sig.browser.version),
     alpn,

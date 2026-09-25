@@ -86,7 +86,7 @@ if (opts.expectedServerHostname != kj::none) {
 An autogate is a switch Cloudflare flips centrally, so the option can stop
 working without any release of yours. It is off in `wrangler dev`, which is why
 local testing proves nothing. So the certificate is checked here instead, by
-rustls compiled to WebAssembly (613 KB, 289 KB gzipped, committed — building it
+rustls compiled to WebAssembly (640 KB, 301 KB gzipped, committed — building it
 needs Rust, using it does not).
 
 ## Install
@@ -462,10 +462,18 @@ than offered: asking for an answer that cannot be decoded is how a request
 breaks.
 
 Where it cannot be the browser, it says so. The `sec-ch-ua` brand list rotates between
-Chrome releases, so check it against a real browser if it matters to you. The
-key share is X25519 alone: the post-quantum group browsers now lead with needs
-a key exchange the TLS module does not have, and naming it without a share
-makes nearly every server ask for it again.
+Chrome releases, so check it against a real browser if it matters to you.
+
+The key shares are the browser's too. Chrome 131 on, Firefox 133 on and
+Safari 26 lead with **X25519MLKEM768**, the post-quantum hybrid, and so does
+the profile: ML-KEM-768 from RustCrypto's `ml-kem`, X25519 from ring, a plain
+X25519 share beside it, a one-byte GREASE share ahead of it for Chrome and
+Safari, and a P-256 share after it for Firefox and Tor — each group and size as
+the captures have them, and each one answered when a server picks it.
+Cloudflare and Google pick the hybrid; others take X25519. Chrome 124 to 130
+offered Kyber's earlier draft instead, which nothing here can make, so those
+profiles send X25519 alone. The hybrid costs about 12 KB of the module
+gzipped and half a millisecond of a handshake's CPU.
 
 And two failures are met with a second connection rather than an error. A
 server that sends its leaf certificate alone gets its issuer fetched, as a
@@ -512,8 +520,8 @@ const edge = await fromFingerprints(
 new Session({ impersonate: edge });
 ```
 
-The JA3 then goes out exactly as given, less any post-quantum group (the same
-reason as above), and `expected.ja3` says what that is. Anything the strings
+The JA3 then goes out exactly as given — less Kyber's draft group, should an
+old Chrome's string name it — and `expected.ja3` says what that is. Anything the strings
 ask for that cannot be sent — an extension the TLS module does not know, or
 Firefox's old PRIORITY frames — is refused with a `FingerprintError` naming
 it, rather than dropped. JA3 records one extension order; Chrome shuffles on
@@ -549,8 +557,8 @@ certificate check, not a round trip: early data is never sent, as Chrome
 does not send it. `tlsResumption: false` turns it off.
 
 Two things keep a resumed hello a browser's. The key share still leads with
-X25519, where rustls on its own would lead with whatever group the server
-chose last time. And the empty `session_ticket` extension BoringSSL and NSS
+the browser's group, where rustls on its own would lead with whatever group
+the server chose last time. And the empty `session_ticket` extension BoringSSL and NSS
 send in every hello stays in, where rustls drops it once it holds a TLS 1.3
 ticket. That rule is taken from their source: curl-impersonate publishes no
 capture of a resumed hello to check the result against.

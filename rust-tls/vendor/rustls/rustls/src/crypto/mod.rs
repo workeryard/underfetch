@@ -569,6 +569,23 @@ pub trait ActiveKeyExchange: Send + Sync {
         unreachable!("only called if `hybrid_component()` implemented")
     }
 
+    /// FORK: key shares sent after this one and its hybrid component, each
+    /// completable on its own — Firefox sends X25519MLKEM768, X25519 and
+    /// P-256, where rustls alone sends at most two. Empty by default.
+    fn extra_shares(&self) -> Vec<(NamedGroup, &[u8])> {
+        Vec::new()
+    }
+
+    /// FORK: completes the extra share for `group`, when the server chose it.
+    /// Only called for a group `extra_shares()` named.
+    fn complete_extra_share(
+        self: Box<Self>,
+        _group: NamedGroup,
+        _peer_pub_key: &[u8],
+    ) -> Result<SharedSecret, Error> {
+        unreachable!("only called for a group `extra_shares()` named")
+    }
+
     /// Return the public key being used.
     ///
     /// For ECDHE, the encoding required is defined in

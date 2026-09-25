@@ -321,6 +321,19 @@ fn emit_client_hello_for_retry(
         debug_assert!(supported_versions.tls13);
         let mut shares = vec![KeyShareEntry::new(key_share.group(), key_share.pub_key())];
 
+        // FORK: a GREASE share first, one byte, for the GREASE group named, as
+        // BoringSSL writes it. A server skips a group it does not know. Never
+        // after a HelloRetryRequest, whose answer must carry the one share
+        // asked for — BoringSSL sends none there, and OpenSSL refuses one.
+        if let Some(grease) = config
+            .fingerprint
+            .as_ref()
+            .filter(|_| retryreq.is_none())
+            .and_then(|fp| fp.grease_key_share())
+        {
+            shares.insert(0, KeyShareEntry::new(grease, [0u8]));
+        }
+
         if !retryreq
             .map(|rr| rr.key_share.is_some())
             .unwrap_or_default()
@@ -339,6 +352,15 @@ fn emit_client_hello_for_retry(
                     })
             {
                 shares.push(KeyShareEntry::new(component_group, component_share));
+            }
+            // FORK: and any further shares, for a browser that sends three.
+            for (group, share) in key_share.extra_shares() {
+                if config
+                    .find_kx_group(group, ProtocolVersion::TLSv1_3)
+                    .is_some()
+                {
+                    shares.push(KeyShareEntry::new(group, share));
+                }
             }
         }
 

@@ -52,6 +52,7 @@ function client(
     extra,
     verifiableSignatures,
     tickets,
+    as.keyShares === undefined ? undefined : new Uint16Array(as.keyShares),
   );
 }
 

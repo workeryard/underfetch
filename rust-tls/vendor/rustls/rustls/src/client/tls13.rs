@@ -249,9 +249,13 @@ pub(super) fn handle_server_hello(
     }))
 }
 
+use crate::NamedGroup;
+
 enum KeyExchangeChoice {
     Whole(Box<dyn ActiveKeyExchange>),
     Component(Box<dyn ActiveKeyExchange>),
+    // FORK: the server chose one of `extra_shares()`.
+    Extra(Box<dyn ActiveKeyExchange>, NamedGroup),
 }
 
 impl KeyExchangeChoice {
@@ -265,6 +269,19 @@ impl KeyExchangeChoice {
     ) -> Result<Self, ()> {
         if our_key_share.group() == their_key_share.group {
             return Ok(Self::Whole(our_key_share));
+        }
+
+        // FORK: a server may pick one of the further shares instead.
+        if our_key_share
+            .extra_shares()
+            .iter()
+            .any(|(group, _)| *group == their_key_share.group)
+        {
+            let actual_skxg = config
+                .find_kx_group(their_key_share.group, ProtocolVersion::TLSv1_3)
+                .ok_or(())?;
+            cx.common.kx_state = KxState::Start(actual_skxg);
+            return Ok(Self::Extra(our_key_share, their_key_share.group));
         }
 
         let (component_group, _) = our_key_share
@@ -289,6 +306,7 @@ impl KeyExchangeChoice {
         match self {
             Self::Whole(akx) => akx.complete(peer_pub_key),
             Self::Component(akx) => akx.complete_hybrid_component(peer_pub_key),
+            Self::Extra(akx, group) => akx.complete_extra_share(group, peer_pub_key),
         }
     }
 }

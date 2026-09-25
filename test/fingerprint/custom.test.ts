@@ -41,11 +41,11 @@ const FIREFOX_144 = {
 };
 
 describe('fromFingerprints', () => {
-  it("sends Chrome 150's JA3 exactly, less the post-quantum group", async () => {
+  it("sends Chrome 150's JA3 exactly, its post-quantum group included", async () => {
     const as = await fromFingerprints(CHROME_150, profiles.chrome150);
     const sent = ja3(parseClientHello(hello(as)));
 
-    expect(sent).toBe(CHROME_150.ja3.replace('4588-', ''));
+    expect(sent).toBe(CHROME_150.ja3);
     expect(as.expected.ja3).toBe(sent);
     expect((await verifyProfile('chrome', as, hello(as))).ok).toBe(true);
   });
@@ -54,7 +54,7 @@ describe('fromFingerprints', () => {
     const as = await fromFingerprints(FIREFOX_144, profiles.chrome150);
     const sent = parseClientHello(hello(as));
 
-    expect(ja3(sent)).toBe(FIREFOX_144.ja3.replace('4588-', ''));
+    expect(ja3(sent)).toBe(FIREFOX_144.ja3);
     // Bodies Chrome has none of, delegated credentials and the record size
     // limit, came from the defaults; the signature algorithms from the base.
     expect(sent.extensions).toContain(0x0022);
