@@ -1,3 +1,6 @@
 node_modules/
 rust-tls/target/
 .wrangler/
+
+# The deployed probe worker's token (make REMOTE=1); never committed.
+.probe-token

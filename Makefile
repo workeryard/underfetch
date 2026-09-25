@@ -18,9 +18,9 @@ PROXY ?=
 RESOURCE ?=
 
 # REMOTE=1 points the live targets at the deployed probe worker instead of
-# `make dev`, with the token kept outside the repo.
+# `make dev`, with the token from .probe-token, which git ignores.
 PROBE_URL   ?= https://probe.underfetch.workers.dev
-TOKEN_FILE  ?= $(HOME)/.config/underfetch/probe-token
+TOKEN_FILE  ?= .probe-token
 ifdef REMOTE
 export PROBE_URL
 export PROBE_TOKEN := $(shell cat $(TOKEN_FILE) 2>/dev/null)
@@ -37,7 +37,7 @@ WASM    = rust-tls/pkg/underfetch_tls_bg.wasm
 .DEFAULT_GOAL := help
 .PHONY: help install check test typecheck lint format verify wasm wasm-size \
         import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
-        resume state live fetch deploy clean
+        resume state live fetch deploy probe-token clean
 
 help: ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -125,6 +125,11 @@ fetch: ## one request through the dev worker [URL=] [AS=] [PROXY=] [RESOURCE=fet
 
 deploy: ## deploy the probe worker; its endpoints demand the PROBE_TOKEN secret
 	npx wrangler deploy
+
+probe-token: ## make a new token, keep it in .probe-token, and set it as the worker's secret
+	@(umask 077; openssl rand -hex 32 > $(TOKEN_FILE))
+	npx wrangler secret put PROBE_TOKEN < $(TOKEN_FILE)
+	@echo "new token in $(TOKEN_FILE); it takes a few seconds to reach every location"
 
 clean: dev-stop ## remove the dev server's state and the Rust build
 	rm -rf .wrangler rust-tls/target
