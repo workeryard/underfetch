@@ -64,6 +64,7 @@ const defaultPort = (url: URL) => (url.protocol === 'http:' || url.protocol === 
 function closingWhenDone(
   body: ReadableStream<Uint8Array>,
   socket: ByteSocket,
+  signal: AbortSignal,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
   const shut = () => {
@@ -81,7 +82,9 @@ function closingWhenDone(
         if (value) controller.enqueue(value);
       } catch (error) {
         shut();
-        throw error;
+        // The deadline closes the socket to stop the read, and the read then
+        // fails as a closed socket; the caller should hear why it was closed.
+        throw signal.aborted ? (signal.reason as Error) : error;
       }
     },
     cancel(reason) {
@@ -304,7 +307,7 @@ async function attempt(
       stop();
       return response;
     }
-    return new Response(closingWhenDone(response.body, carrier.socket), response);
+    return new Response(closingWhenDone(response.body, carrier.socket, signal), response);
   } catch (error) {
     stop();
     throw error;

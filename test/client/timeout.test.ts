@@ -153,3 +153,36 @@ describe('connect timeout', () => {
     expect(await response.text()).toBe('slow');
   });
 });
+
+describe('a deadline during the body', () => {
+  it('reports the timeout, not the closed socket it caused', async () => {
+    const dial: Dial = () => {
+      let fail: (error: Error) => void = () => undefined;
+      const socket: ByteSocket = {
+        readable: new ReadableStream<Uint8Array>({
+          start(controller) {
+            // Headers and half a body, then nothing: the server has stalled.
+            controller.enqueue(
+              new TextEncoder().encode('HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nhalf'),
+            );
+            fail = (error) => controller.error(error);
+          },
+        }),
+        writable: new WritableStream<Uint8Array>(),
+        // As workerd does: closing fails the pending read.
+        close: () => {
+          fail(new TypeError('This socket has been closed.'));
+          return Promise.resolve();
+        },
+      };
+      return Promise.resolve(socket);
+    };
+
+    const response = await proxyFetch(new Request('http://example.com/'), {
+      dial,
+      tls: () => new Passthrough(),
+      timeoutMs: 100,
+    });
+    await expect(response.text()).rejects.toThrow(TimeoutError);
+  });
+});
