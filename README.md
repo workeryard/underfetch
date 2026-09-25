@@ -529,20 +529,40 @@ does too. A saved session remembers the strings and rebuilds the profile on
 its own. Outside a Worker, `withFingerprints(profile, { ja3, akamai })` from
 `underfetch` makes the same profile.
 
-A profile of your own is the same shape, written by hand:
+The strings cover the handshake and the HTTP/2 opening. For anything past
+them — other headers, a different header order, extension bodies — write the
+whole profile yourself and pass it as `impersonate`. It is an `Impersonation`,
+the type every built-in profile is:
 
 ```ts
+import { GREASE, Session, type Impersonation } from 'underfetch/workers';
+
 const myBrowser: Impersonation = {
   alpn: ['h2', 'http/1.1'],
-  http2: { settings: [...], windowUpdate: 15663105, pseudoHeaderOrder: ['m', 'a', 's', 'p'] },
-  ciphers: [GREASE[0], 0x1301 /* ... */],
-  signatureSchemes: [0x0403 /* ... */],
+  http2: {
+    settings: [[1, 65536]],
+    windowUpdate: 15663105,
+    pseudoHeaderOrder: ['m', 'a', 's', 'p'],
+  },
+  ciphers: [GREASE[0], 0x1301, 0x1302, 0x1303],
+  signatureSchemes: [0x0403, 0x0804, 0x0401],
   greaseNamedGroup: true,
-  extensions: () => [[0xff01, new Uint8Array([0])] /* ... */],
+  namedGroups: [GREASE[0], 0x11ec, 0x001d, 0x0017], // optional; key shares follow
+  headers: [
+    ['user-agent', 'MyBrowser/1.0'],
+    ['accept', '*/*'],
+  ],
+  extensions: () => [[0xff01, new Uint8Array([0])]],
+  expected: { akamai: '1:65536|15663105|0|m,a,s,p' }, // what verify checks it against
 };
 
 new Session({ impersonate: myBrowser });
 ```
+
+`keyShares`, `extensionOrder` and `family` are optional too: `family` says
+which browser's measured header orders and fetch() headers to follow. A
+profile like this is saved with a session but not rebuilt by `unmarshal`,
+which has no way to know it; pass it again when restoring.
 
 Naming an `extensionOrder` makes that list authoritative: extensions the TLS
 library would have added but the profile does not name are dropped, because a

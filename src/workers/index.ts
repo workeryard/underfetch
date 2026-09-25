@@ -369,7 +369,7 @@ export { SessionStateError } from './state';
 export type { SessionState } from './state';
 export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
-export { profiles } from '../fingerprint/profiles';
+export { GREASE, profiles } from '../fingerprint/profiles';
 export { FingerprintError } from '../fingerprint/custom';
 export { ResourceError } from '../fingerprint/order';
 export type { FetchSite, Resource } from '../fingerprint/order';
