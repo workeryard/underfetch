@@ -9,7 +9,8 @@
 import { ByteReader, ByteWriter } from '../net/bytes';
 import { readResponseHead } from '../http/http1';
 import { USER_AGENT } from '../http/user-agent';
-import { WebSocketConnection, WebSocketError } from '../http/websocket';
+import { acceptedDeflate, DEFLATE_OFFER, type InflaterFactory } from '../http/permessage-deflate';
+import { WebSocketConnection, WebSocketError, type Deflate } from '../http/websocket';
 import { deadline, until } from './abort';
 import { openCarrier, remedied, type ProxyFetchOptions } from './fetch';
 
@@ -27,7 +28,13 @@ export interface WebSocketOptions {
 }
 
 export interface WebSocketConnectOptions
-  extends WebSocketOptions, Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains'> {}
+  extends WebSocketOptions, Pick<ProxyFetchOptions, 'dial' | 'tls' | 'proxy' | 'completeChains'> {
+  /**
+   * Reads permessage-deflate, which is offered only when this is given: a
+   * compressed message nothing can inflate would end the connection.
+   */
+  inflater?: InflaterFactory | undefined;
+}
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -36,7 +43,7 @@ const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
  * caller gave follows. Written from Chrome's known handshake, not from a
  * capture, which curl-impersonate does not publish for WebSockets.
  */
-function handshakeHead(url: URL, key: string, options: WebSocketOptions): string {
+function handshakeHead(url: URL, key: string, options: WebSocketConnectOptions): string {
   const given = new Headers(options.headers);
   const lines = [
     `GET ${url.pathname}${url.search} HTTP/1.1`,
@@ -57,6 +64,7 @@ function handshakeHead(url: URL, key: string, options: WebSocketOptions): string
   optional('accept-language', 'Accept-Language');
   optional('cookie', 'Cookie');
   lines.push(`Sec-WebSocket-Key: ${key}`);
+  if (options.inflater) lines.push(`Sec-WebSocket-Extensions: ${DEFLATE_OFFER}`);
   if (options.protocols?.length)
     lines.push(`Sec-WebSocket-Protocol: ${options.protocols.join(', ')}`);
 
@@ -137,10 +145,15 @@ export async function connectWebSocket(
     if (chosen !== '' && !options.protocols?.includes(chosen)) {
       throw new WebSocketError(`the server chose a subprotocol never offered: ${chosen}`);
     }
-    // Nothing was offered, so nothing may be accepted: a compressed frame
+    // What was not offered may not be accepted: a compressed frame
     // would be unreadable.
-    if (headers.has('sec-websocket-extensions')) {
-      throw new WebSocketError('the server turned on an extension never offered');
+    const extensions = headers.get('sec-websocket-extensions');
+    let deflate: Deflate | undefined;
+    if (extensions !== null) {
+      if (!options.inflater) {
+        throw new WebSocketError('the server turned on an extension never offered');
+      }
+      deflate = { create: options.inflater, terms: acceptedDeflate(extensions) };
     }
 
     // The handshake's deadline is spent; the caller's own signal still holds.
@@ -152,6 +165,7 @@ export async function connectWebSocket(
       shut,
       chosen,
       options.maxMessageBytes ?? 16 * 1024 * 1024,
+      deflate,
     );
     return { socket, headers };
   } catch (error) {

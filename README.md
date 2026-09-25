@@ -211,10 +211,13 @@ navigates (`accept`, `sec-fetch-*`, `sec-ch-ua*` and the like). The order
 is Chrome's, written from its known handshake rather than from a capture;
 `origin` is sent only when given.
 
-`permessage-deflate` is not offered, where Chrome offers it: a message
-compressed with the server's context carried over needs an inflater flushed
-at every message, which `DecompressionStream` cannot do. Servers send
-uncompressed instead.
+`permessage-deflate` is offered as Chrome offers it, word for word, where the
+Worker can read it: a message compressed with the server's window carried
+over needs an inflater flushed at every message, which `DecompressionStream`
+cannot do, so it comes from `node:zlib` — the same recent compatibility date
+as brotli. On an older date it is not offered, and servers send plain.
+Messages we send go uncompressed, which the RFC allows; `ws.compressed` says
+whether the server may compress.
 
 A message over `maxMessageBytes` (16 MiB by default) closes the connection
 with 1009, text that is not UTF-8 with 1007, and a broken frame with 1002.
@@ -269,7 +272,7 @@ different TLS stack means implementing six methods.
 | Cookies, with domain and path scoping            | yes                            |
 | Retries, idempotent methods only by default      | yes                            |
 | Basic, Bearer and Digest authentication          | yes, Digest in MD5 and SHA-256 |
-| WebSocket, over its own `http/1.1` connection    | yes, without compression       |
+| WebSocket, over its own `http/1.1` connection    | yes, with permessage-deflate   |
 | HTTP/3                                           | never — a Worker has no UDP    |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is

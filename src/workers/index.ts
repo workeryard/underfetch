@@ -18,6 +18,7 @@ import {
 import type { WebSocketConnection } from '../http/websocket';
 import { verifyProfile, type Verdict } from '../fingerprint/verify';
 import { acceptable, zlibDecoders, type ZlibModule } from '../http/decompress';
+import { zlibInflater, type InflateModule } from '../http/permessage-deflate';
 import { impersonating } from '../tls/wasm';
 import type { ByteSocket, Dial } from '../net/socket';
 
@@ -37,19 +38,22 @@ export const dial: Dial = (hostname, port) => {
 };
 
 /**
- * Brotli and zstd, from the `node:zlib` a Worker carries on a recent
- * compatibility date (2026-09-21 has it, 2024-06-01 does not). Asked for
- * through `process.getBuiltinModule` rather than imported: an import of
- * `node:zlib` on an older date stops the whole Worker from starting, where
- * this finds nothing and leaves gzip and deflate.
+ * The `node:zlib` a Worker carries on a recent compatibility date
+ * (2026-09-21 has it, 2024-06-01 does not): brotli and zstd for bodies, and
+ * raw inflate for WebSockets. Asked for through `process.getBuiltinModule`
+ * rather than imported: an import of `node:zlib` on an older date stops the
+ * whole Worker from starting, where this finds nothing and leaves gzip,
+ * deflate and uncompressed WebSockets.
  */
-export const decoders = zlibDecoders(
-  (
-    globalThis as {
-      process?: { getBuiltinModule?: (name: string) => unknown };
-    }
-  ).process?.getBuiltinModule?.('node:zlib') as ZlibModule | undefined,
-);
+const zlib = (
+  globalThis as { process?: { getBuiltinModule?: (name: string) => unknown } }
+).process?.getBuiltinModule?.('node:zlib') as (ZlibModule & InflateModule) | undefined;
+
+/** Brotli and zstd, where there is a `node:zlib` to supply them. */
+export const decoders = zlibDecoders(zlib);
+
+/** permessage-deflate on a WebSocket, from the same `node:zlib`, where there is one. */
+export const inflater = zlibInflater(zlib);
 
 /**
  * The profile's headers, with anything the session set taking precedence.
@@ -88,6 +92,7 @@ export class Session extends PlainSession {
     super({
       dial,
       decoders,
+      inflater,
       tls: impersonating(as),
       ...(as ? { http2: as.http2 } : {}),
       ...defaults,

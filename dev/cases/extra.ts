@@ -187,9 +187,39 @@ export async function websocketCases(profile: WorkerSessionDefaults['impersonate
         echoedBig?.data === big;
       return [
         ok,
-        `greeting ${short(greeting?.data)}, text ${short(text?.data)}, 100 KB ${echoedBig?.data === big}, closed ${short(closed)}`,
+        `deflate ${ws.compressed}, greeting ${short(greeting?.data)}, text ${short(text?.data)}, 100 KB ${echoedBig?.data === big}, closed ${short(closed)}`,
       ];
     }),
   );
+  // Both compress (checked with a raw client: RSV1 set). Bitstamp keeps its
+  // window across messages and fragments them; Coinbase starts each afresh.
+  for (const [name, url, subscribe] of [
+    [
+      'bitstamp, deflate with context kept',
+      'wss://ws.bitstamp.net/',
+      { event: 'bts:subscribe', data: { channel: 'order_book_btcusd' } },
+    ],
+    [
+      'coinbase, deflate without context',
+      'wss://ws-feed.exchange.coinbase.com/',
+      { type: 'subscribe', product_ids: ['BTC-USD'], channels: ['ticker'] },
+    ],
+  ] as const) {
+    out.push(
+      await run('websocket', `${name} (${label})`, async () => {
+        const ws = await websocket(url, { impersonate: profile, timeoutMs: 10_000 });
+        await ws.send(JSON.stringify(subscribe));
+        let parsed = 0;
+        for (let i = 0; i < 6; i++) {
+          const message = await ws.recv();
+          if (message?.type !== 'text') break;
+          JSON.parse(message.data);
+          parsed++;
+        }
+        await ws.close();
+        return [ws.compressed && parsed === 6, `deflate ${ws.compressed}, ${parsed} JSON messages`];
+      }),
+    );
+  }
   return out;
 }

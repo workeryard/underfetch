@@ -6,13 +6,20 @@
  * unless something awaits it. Pings are answered on the way past, and a
  * close is answered and finished as the RFC asks.
  *
- * permessage-deflate is not offered, so frames never arrive compressed.
+ * Messages compressed with permessage-deflate are inflated here when the
+ * handshake agreed to it; see `permessage-deflate.ts`.
  */
 
 import type { ByteReader } from '../net/bytes';
+import type { DeflateTerms, InflaterFactory, MessageInflater } from './permessage-deflate';
+import { WebSocketError } from './websocket-error';
 
-export class WebSocketError extends Error {
-  override name = 'WebSocketError';
+export { WebSocketError };
+
+/** permessage-deflate as the handshake settled it. */
+export interface Deflate {
+  create: InflaterFactory;
+  terms: DeflateTerms;
 }
 
 export type WebSocketMessage =
@@ -58,6 +65,8 @@ export function encodeFrame(op: number, payload: Uint8Array, fin = true): Uint8A
 
 interface Frame {
   fin: boolean;
+  /** RSV1: under permessage-deflate, this message is compressed. */
+  compressed: boolean;
   op: number;
   payload: Uint8Array;
 }
@@ -76,11 +85,18 @@ class Violation extends WebSocketError {
   }
 }
 
-async function readFrame(reader: ByteReader, limit: number): Promise<Frame> {
+async function readFrame(reader: ByteReader, limit: number, deflate: boolean): Promise<Frame> {
   const [first, second] = await reader.exactly(2);
-  if ((first! & 0x70) !== 0) throw new Violation(PROTOCOL, 'a frame set a reserved bit');
+  // RSV1 is permessage-deflate's, and only once it was agreed.
+  if ((first! & (deflate ? 0x30 : 0x70)) !== 0) {
+    throw new Violation(PROTOCOL, 'a frame set a reserved bit');
+  }
   if ((second! & 0x80) !== 0) throw new Violation(PROTOCOL, 'the server masked a frame');
   const op = first! & 0x0f;
+  const compressed = (first! & 0x40) !== 0;
+  if (compressed && (op === 0 || op >= 0x8)) {
+    throw new Violation(PROTOCOL, 'RSV1 on a frame that does not begin a message');
+  }
   let length = second! & 0x7f;
   if (length === 126) {
     length = new DataView((await reader.exactly(2)).slice().buffer).getUint16(0);
@@ -93,7 +109,8 @@ async function readFrame(reader: ByteReader, limit: number): Promise<Frame> {
     throw new Violation(PROTOCOL, 'a control frame was fragmented or too long');
   }
   if (length > limit) throw new Violation(TOO_BIG, `a frame of ${length} bytes is over the limit`);
-  return { fin, op, payload: length === 0 ? new Uint8Array(0) : await reader.exactly(length) };
+  const payload = length === 0 ? new Uint8Array(0) : await reader.exactly(length);
+  return { fin, compressed, op, payload };
 }
 
 function joined(parts: Uint8Array[]): Uint8Array {
@@ -117,6 +134,8 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
   readonly #writer: WritableStreamDefaultWriter<Uint8Array>;
   readonly #shut: () => void;
   readonly #limit: number;
+  readonly #deflate: Deflate | undefined;
+  #inflater: MessageInflater | undefined;
   /** Frames go out one at a time, in order, however many callers send. */
   #writing: Promise<void> = Promise.resolve();
   /** And messages are read one caller at a time. */
@@ -131,11 +150,22 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
     /** The subprotocol the server chose, or '' for none. */
     readonly protocol: string,
     maxMessageBytes: number,
+    deflate?: Deflate,
   ) {
     this.#reader = reader;
     this.#writer = writable.getWriter();
-    this.#shut = shut;
+    this.#shut = () => {
+      this.#inflater?.close();
+      this.#inflater = undefined;
+      shut();
+    };
     this.#limit = maxMessageBytes;
+    this.#deflate = deflate;
+  }
+
+  /** Whether the server may send compressed messages. */
+  get compressed(): boolean {
+    return this.#deflate !== undefined;
   }
 
   /** How it ended, once it has; null while it is open. */
@@ -190,9 +220,14 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
     const parts: Uint8Array[] = [];
     let size = 0;
     let op: number | undefined;
+    let compressed = false;
     try {
       for (;;) {
-        const frame = await readFrame(this.#reader, this.#limit - size);
+        const frame = await readFrame(
+          this.#reader,
+          this.#limit - size,
+          this.#deflate !== undefined,
+        );
         if (frame.op === Op.Ping) {
           if (!this.#sentClose)
             void this.#write(encodeFrame(Op.Pong, frame.payload)).catch(() => undefined);
@@ -208,6 +243,7 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
         } else if (frame.op === Op.Text || frame.op === Op.Binary) {
           if (op !== undefined) throw new Violation(PROTOCOL, 'a message began inside another');
           op = frame.op;
+          compressed = frame.compressed;
         } else {
           throw new Violation(PROTOCOL, `unknown opcode ${frame.op}`);
         }
@@ -215,7 +251,7 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
         size += frame.payload.length;
         if (!frame.fin) continue;
 
-        const data = joined(parts);
+        const data = compressed ? await this.#inflate(joined(parts)) : joined(parts);
         if (op === Op.Binary) return { type: 'binary', data };
         try {
           return { type: 'text', data: utf8.decode(data) };
@@ -232,6 +268,23 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
       if (!this.#closed) this.#closed = { code: 1006, reason: '' };
       this.#shut();
       return null;
+    }
+  }
+
+  async #inflate(data: Uint8Array): Promise<Uint8Array> {
+    const deflate = this.#deflate!;
+    this.#inflater ??= deflate.create();
+    try {
+      return await this.#inflater.inflate(data, this.#limit);
+    } catch (error) {
+      if (error instanceof RangeError) throw new Violation(TOO_BIG, error.message);
+      throw new Violation(INVALID_DATA, `a compressed message would not inflate: ${String(error)}`);
+    } finally {
+      // Without the server's context kept, every message starts afresh.
+      if (deflate.terms.serverNoContextTakeover) {
+        this.#inflater?.close();
+        this.#inflater = undefined;
+      }
     }
   }
 

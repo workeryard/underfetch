@@ -7,6 +7,7 @@
  */
 
 import type { Decoders } from '../http/decompress';
+import type { InflaterFactory } from '../http/permessage-deflate';
 import type { Http2Profile } from '../http/h2/connection';
 import type { Dial, Proxy } from '../net/socket';
 import type { TlsFactory } from '../tls/tunnel';
@@ -47,6 +48,8 @@ export interface SessionOptions extends SessionDefaults {
   http2?: Http2Profile | undefined;
   /** Decoders beyond gzip and deflate; the runtime supplies these. */
   decoders?: Decoders | undefined;
+  /** Reads permessage-deflate on a WebSocket; the runtime supplies it. */
+  inflater?: InflaterFactory | undefined;
 }
 
 export interface SessionWebSocketInit extends WebSocketOptions {
@@ -83,14 +86,16 @@ export class Session {
   readonly #tls: TlsFactory;
   readonly #http2: Http2Profile | undefined;
   readonly #decoders: Decoders | undefined;
+  readonly #inflater: InflaterFactory | undefined;
   readonly #defaults: SessionDefaults;
   readonly #jar: CookieJar | undefined;
 
-  constructor({ dial, tls, http2, decoders, ...defaults }: SessionOptions) {
+  constructor({ dial, tls, http2, decoders, inflater, ...defaults }: SessionOptions) {
     this.#dial = dial;
     this.#tls = tls;
     this.#http2 = http2;
     this.#decoders = decoders;
+    this.#inflater = inflater;
     this.#defaults = defaults;
     this.#jar =
       defaults.cookies === true
@@ -203,6 +208,7 @@ export class Session {
       headers,
       dial: this.#dial,
       tls: this.#tls,
+      inflater: this.#inflater,
       ...(proxy ? { proxy } : { proxy: undefined }),
       timeoutMs,
     });
