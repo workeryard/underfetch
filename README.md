@@ -1,7 +1,7 @@
 # underfetch
 
-HTTP over raw sockets for Cloudflare Workers: SOCKS5 and HTTP `CONNECT`
-proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look
+HTTP over raw sockets for Cloudflare Workers: SOCKS5, SOCKS4 and HTTP(S)
+`CONNECT` proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look
 like Chrome, Firefox or Safari.
 
 ```ts
@@ -90,6 +90,17 @@ const viaSocks = new Session({
 // Through an HTTP CONNECT proxy instead.
 const viaHttp = new Session({
   proxy: { kind: 'http', hostname: 'proxy.internal', port: 8080 },
+});
+
+// The same over TLS: the proxy's certificate is checked against its name,
+// and the target's TLS runs inside that connection.
+const viaHttps = new Session({
+  proxy: { kind: 'https', hostname: 'proxy.example.com', port: 443 },
+});
+
+// SOCKS4, as 4a: the proxy resolves the name. `username` is the user ID.
+const viaSocks4 = new Session({
+  proxy: { kind: 'socks4', hostname: '203.0.113.9', port: 1080 },
 });
 
 // One request may override the session: `null` forces it direct.
@@ -260,7 +271,9 @@ different TLS stack means implementing six methods.
 |                                                  |                                |
 | ------------------------------------------------ | ------------------------------ |
 | SOCKS5, with username/password auth              | yes                            |
+| SOCKS4 and 4a                                    | yes, no IPv6 targets           |
 | HTTP `CONNECT`, with basic auth                  | yes                            |
+| HTTP `CONNECT` over TLS to the proxy             | yes, its certificate checked   |
 | TLS 1.2 and 1.3, certificates verified           | yes                            |
 | Short certificate chains completed from AIA      | yes, as browsers do            |
 | Streaming request and response bodies            | yes                            |

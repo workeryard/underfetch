@@ -220,7 +220,7 @@ export interface Carrier {
  */
 export async function openCarrier(
   url: URL,
-  { dial, proxy }: Pick<ProxyFetchOptions, 'dial' | 'proxy'>,
+  { dial, proxy, tls: proxyTls }: Pick<ProxyFetchOptions, 'dial' | 'proxy' | 'tls'>,
   tls: TlsFactory,
   signal: AbortSignal,
   alpn?: string,
@@ -234,7 +234,9 @@ export async function openCarrier(
 
   try {
     const setup = async (): Promise<Carrier> => {
-      const tunnel = proxy ? await tunnelThrough(socket, proxy, url.hostname, port) : socket;
+      const tunnel = proxy
+        ? await tunnelThrough(await toProxy(socket, proxy, proxyTls), proxy, url.hostname, port)
+        : socket;
       // Plain http needs no session; https gets one that checks the
       // certificate against the target's name, which the proxy never sees.
       if (url.protocol === 'http:' || url.protocol === 'ws:') {
@@ -248,6 +250,18 @@ export async function openCarrier(
     stop();
     throw error;
   }
+}
+
+/**
+ * The connection the proxy's own handshake runs over: the socket itself, or
+ * for an HTTPS proxy a TLS session to it, checked against the proxy's name.
+ * The target's TLS then runs inside this one. It is not the target's
+ * handshake, so none of the target's remedies apply to it.
+ */
+async function toProxy(socket: ByteSocket, proxy: Proxy, tls: TlsFactory): Promise<ByteSocket> {
+  if (proxy.kind !== 'https') return socket;
+  const secured = await tlsTunnel(socket, tls(proxy.hostname, 'http/1.1'));
+  return { readable: secured.readable, writable: secured.writable, close: () => socket.close() };
 }
 
 /** One connection: dial, tunnel, TLS, and the request over whichever HTTP. */

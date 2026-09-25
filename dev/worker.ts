@@ -11,7 +11,7 @@
 import { profiles, type ProfileName } from '../src/fingerprint/profiles';
 import { fromFingerprints } from '../src/fingerprint/custom';
 import { akamai } from '../src/fingerprint/verify';
-import { Session } from '../src/workers/index';
+import { Session, type Proxy } from '../src/workers/index';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
 import { sessionCases } from './cases/session';
@@ -155,9 +155,23 @@ export default {
       if (url === null) return new Response('give me ?url=', { status: 400 });
       const as = query.get('as') as ProfileName | null;
       const started = Date.now();
+      // `?proxy=socks5://user:pass@host:1080`, and socks4, http, https alike.
+      const via = query.get('proxy');
+      const proxyUrl = via === null ? null : new URL(via);
+      const proxy =
+        proxyUrl === null
+          ? undefined
+          : ({
+              kind: proxyUrl.protocol.slice(0, -1),
+              hostname: proxyUrl.hostname,
+              port: Number(proxyUrl.port),
+              ...(proxyUrl.username ? { username: decodeURIComponent(proxyUrl.username) } : {}),
+              ...(proxyUrl.password ? { password: decodeURIComponent(proxyUrl.password) } : {}),
+            } as Proxy);
       const response = await new Session({
         timeoutMs: 20_000,
         ...(as ? { impersonate: as } : {}),
+        ...(proxy ? { proxy } : {}),
       }).fetch(url);
       const body = await response.text();
       return Response.json({

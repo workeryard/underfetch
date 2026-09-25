@@ -7,13 +7,13 @@
  */
 
 import { ByteReader, ByteWriter } from './bytes';
-import type { ByteSocket, HttpProxy } from './socket';
+import type { ByteSocket, HttpProxy, HttpsProxy } from './socket';
 
 export class HttpConnectError extends Error {
   override name = 'HttpConnectError';
 }
 
-function credentials(proxy: HttpProxy): string | null {
+function credentials(proxy: HttpProxy | HttpsProxy): string | null {
   if (proxy.username === undefined || proxy.password === undefined) return null;
   return `Basic ${btoa(`${proxy.username}:${proxy.password}`)}`;
 }
@@ -24,7 +24,7 @@ function credentials(proxy: HttpProxy): string | null {
  */
 export async function httpConnect(
   socket: ByteSocket,
-  proxy: HttpProxy,
+  proxy: HttpProxy | HttpsProxy,
   hostname: string,
   port: number,
 ): Promise<ByteSocket> {

@@ -190,4 +190,4 @@ export type { SessionDefaults, SessionRequestInit, SessionWebSocketInit } from '
 export { WebSocketConnection, WebSocketError } from '../http/websocket';
 export type { WebSocketClose, WebSocketMessage } from '../http/websocket';
 export { WebSocketRefused } from '../client/websocket';
-export type { HttpProxy, Proxy, Socks5Proxy } from '../net/socket';
+export type { HttpProxy, HttpsProxy, Proxy, Socks4Proxy, Socks5Proxy } from '../net/socket';

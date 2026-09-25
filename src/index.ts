@@ -49,7 +49,16 @@ export type { TlsFactory, TlsSession } from './tls/tunnel';
 export { ByteReader, ByteWriter } from './net/bytes';
 export { HttpConnectError, httpConnect } from './net/http-connect';
 export { tunnelThrough } from './net/proxy';
-export type { ByteSocket, Dial, HttpProxy, Proxy, Socks5Proxy } from './net/socket';
+export type {
+  ByteSocket,
+  Dial,
+  HttpProxy,
+  HttpsProxy,
+  Proxy,
+  Socks4Proxy,
+  Socks5Proxy,
+} from './net/socket';
+export { Socks4Error, socks4Connect } from './net/socks4';
 export { Socks5Error, socks5Connect } from './net/socks5';
 
 export { encodeExtensions, GREASE, profiles } from './fingerprint/profiles';

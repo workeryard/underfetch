@@ -29,9 +29,28 @@ export interface Socks5Proxy extends ProxyAddress {
   kind: 'socks5';
 }
 
+/**
+ * A SOCKS4 proxy, speaking 4a so the target's name is resolved at the proxy.
+ * SOCKS4 has no password: `username` is sent as its user ID.
+ */
+export interface Socks4Proxy {
+  kind: 'socks4';
+  hostname: string;
+  port: number;
+  username?: string | undefined;
+}
+
 /** A proxy that tunnels with HTTP `CONNECT`. */
 export interface HttpProxy extends ProxyAddress {
   kind: 'http';
 }
 
-export type Proxy = Socks5Proxy | HttpProxy;
+/**
+ * The same, reached over TLS: the proxy's certificate is checked against
+ * `hostname`, and the target's TLS then runs inside that one.
+ */
+export interface HttpsProxy extends ProxyAddress {
+  kind: 'https';
+}
+
+export type Proxy = Socks5Proxy | Socks4Proxy | HttpProxy | HttpsProxy;
