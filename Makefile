@@ -89,12 +89,18 @@ dev: dev-stop ## start the dev worker in the background, cache cleared
 
 # Killing workerd alone is not enough: its parent, node running wrangler,
 # respawns it at once. So the parent goes first, then the child.
+# A server that has stopped listening can still be running, so what is left
+# is then found by its command line; the [w] keeps pgrep from matching the
+# shell running this recipe, whose own command line holds the pattern.
 dev-stop: ## stop the dev worker
 	@pid=$$(ss -ltnp 2>/dev/null | grep ':$(PORT) ' | grep -oP 'pid=\K[0-9]+' | head -1); \
 	if [ -n "$$pid" ]; then \
 	  parent=$$(ps -o ppid= -p $$pid | tr -d ' '); \
-	  kill $$parent $$pid 2>/dev/null; sleep 1; echo "stopped the dev worker"; \
-	fi
+	  kill $$parent $$pid 2>/dev/null; sleep 1; \
+	fi; \
+	left=$$(pgrep -f '[w]rangler.*dev --port $(PORT)'; pgrep -f '[w]orkerd serve.*entry=localhost:$(PORT)'); \
+	if [ -n "$$left" ]; then kill $$left 2>/dev/null; sleep 1; fi; \
+	if [ -n "$$pid$$left" ]; then echo "stopped the dev worker"; fi
 
 dev-restart: dev-stop dev ## a fresh isolate: nothing left in wasm memory
 
