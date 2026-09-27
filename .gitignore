@@ -4,3 +4,6 @@ rust-tls/target/
 
 # The deployed probe worker's token (make REMOTE=1); never committed.
 .probe-token
+
+# @cloudflare/workers-types for make typecheck-workers, fetched, never committed.
+.cache/

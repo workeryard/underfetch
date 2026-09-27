@@ -124,7 +124,9 @@ function joined(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-const utf8 = new TextDecoder('utf-8', { fatal: true });
+// ignoreBOM is false by default; @cloudflare/workers-types makes it a
+// required field, so it is written out for a Worker's typecheck.
+const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false });
 
 /** How long `close()` waits for the server to answer before hanging up anyway. */
 const CLOSE_WAIT_MS = 5_000;
@@ -331,7 +333,8 @@ export class WebSocketConnection implements AsyncIterable<WebSocketMessage> {
       while ((await this.recv().catch(() => null)) !== null);
     })();
     await Promise.race([drained, late]);
-    clearTimeout(timer);
+    // Workers' clearTimeout takes no undefined, where the DOM's does.
+    if (timer !== undefined) clearTimeout(timer);
     if (!this.#closed) this.#closed = { code: 1006, reason: '' };
     this.#shut();
     return this.#closed;

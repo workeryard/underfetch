@@ -35,7 +35,7 @@ LOG     = .wrangler/dev.log
 WASM    = rust-tls/pkg/underfetch_tls_bg.wasm
 
 .DEFAULT_GOAL := help
-.PHONY: help install check test typecheck lint format verify wasm wasm-size \
+.PHONY: help install check test typecheck typecheck-workers lint format verify wasm wasm-size \
         import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
         resume state live fetch deploy probe-token clean
 
@@ -59,6 +59,20 @@ lint: ## eslint alone
 
 format: ## prettier over everything
 	pnpm format
+
+# A Worker compiles src/ against @cloudflare/workers-types, whose DOM-like
+# types differ (a TextDecoder's ignoreBOM is required; clearTimeout takes no
+# undefined). The types are fetched once into .cache/ rather than depended on.
+WORKERS_TYPES = .cache/workers-types/node_modules/@cloudflare/workers-types
+typecheck-workers: ## typecheck src/ the way a Worker project compiles it
+	@if [ ! -d $(WORKERS_TYPES) ]; then \
+	  mkdir -p .cache/workers-types && cd .cache/workers-types && \
+	  npm pack @cloudflare/workers-types --silent >/dev/null && \
+	  mkdir -p node_modules/@cloudflare && tar -xzf cloudflare-workers-types-*.tgz && \
+	  mv package node_modules/@cloudflare/workers-types && rm -f cloudflare-workers-types-*.tgz; \
+	fi
+	npx tsc -p tsconfig.workers.json
+	@echo "src/ typechecks under @cloudflare/workers-types $$(node -p "require('./$(WORKERS_TYPES)/package.json').version")"
 
 verify: ## every profile's JA4 and Akamai string, offline
 	pnpm verify

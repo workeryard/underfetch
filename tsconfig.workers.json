@@ -1,0 +1,21 @@
+{
+  // src/ as a Worker compiles it: @cloudflare/workers-types and no DOM, as
+  // underfetch/workers is compiled by the projects that import it. The types
+  // are fetched into .cache/ by `make typecheck-workers`, not depended on.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "typeRoots": ["./.cache/workers-types/node_modules"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["src/**/*.ts"],
+  // The types declare cloudflare:sockets themselves.
+  "exclude": ["src/workers/sockets.d.ts"]
+}
