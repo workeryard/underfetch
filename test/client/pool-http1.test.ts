@@ -88,7 +88,7 @@ describe('a kept HTTP/1.1 connection', () => {
     const slow = await session.get('http://other.example/slow');
     expect(server.closed()).toBe(0);
 
-    session.close();
+    await session.close();
     expect(server.closed()).toBe(2);
     await expect(slow.text()).rejects.toThrow();
     // Nothing comes back to the pool once it has been closed.

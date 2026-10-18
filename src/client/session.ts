@@ -7,6 +7,7 @@
  */
 
 import { acceptable, type Decoders } from '../http/decompress';
+import './disposable';
 import {
   requestOrder,
   resourceHeaders,
@@ -51,10 +52,12 @@ export interface SessionDefaults extends RedirectOptions {
   /**
    * Keep connections open for the next request to the same place, as a
    * browser does: HTTP/2 carries every request to an origin on one
-   * connection, HTTP/1.1 reuses one once its answer is read. `close()` lets
-   * them go. Default: true.
+   * connection, HTTP/1.1 reuses one once its answer is read. `close()`, or
+   * `using`, lets them go. Default: true.
    */
   keepAlive?: boolean | undefined;
+  /** How long a kept connection may carry nothing before it is closed. Default: 60 s. */
+  idleTimeoutMs?: number | undefined;
 }
 
 export interface SessionOptions extends SessionDefaults {
@@ -170,7 +173,10 @@ export class Session {
     this.#inflater = inflater;
     this.#fallback = fallback;
     this.#defaults = defaults;
-    this.#pool = new ConnectionPool({ keepAlive: defaults.keepAlive ?? true });
+    this.#pool = new ConnectionPool({
+      keepAlive: defaults.keepAlive ?? true,
+      ...(defaults.idleTimeoutMs === undefined ? {} : { idleMs: defaults.idleTimeoutMs }),
+    });
     this.#jar =
       defaults.cookies === true
         ? new CookieJar()
@@ -185,11 +191,22 @@ export class Session {
   }
 
   /**
-   * Closes the connections this session is keeping. Answers still being read
-   * are cut off; the session itself can go on, on new connections.
+   * Closes the connections this session is keeping, and resolves once their
+   * sockets are closed. Answers still being read are cut off; the session
+   * itself can go on, on new connections.
    */
-  close(): void {
-    this.#pool.close();
+  close(): Promise<void> {
+    return this.#pool.close();
+  }
+
+  /** For `using session = new Session(…)`: closes it when the block ends. */
+  [Symbol.dispose](): void {
+    void this.close();
+  }
+
+  /** For `await using`: closes it, and waits for the sockets to close. */
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.close();
   }
 
   /** The proxy this session uses when a request does not say otherwise. */

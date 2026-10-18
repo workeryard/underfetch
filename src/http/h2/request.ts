@@ -143,15 +143,16 @@ export function withPriority(
 }
 
 /**
- * The stream a new one depends on, as Chromium chooses it: the newest still
- * open at its priority or above — weight standing for priority, which is how
- * Chromium maps one to the other — or none.
+ * The stream a new one depends on: for a profile that chains them as
+ * Chromium does, the newest still open at its priority or above — weight
+ * standing for priority, which is how Chromium maps one to the other — or
+ * none.
  */
 export function dependency(
   open: Iterable<{ id: number; weight: number }>,
-  priority: Http2Profile['priority'],
+  { dependOnOpen, priority }: Http2Profile,
 ): number {
-  if (priority === undefined) return 0;
+  if (!dependOnOpen || priority === undefined) return 0;
   let found = 0;
   for (const stream of open) if (stream.weight >= priority.weight) found = stream.id;
   return found;

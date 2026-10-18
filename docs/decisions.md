@@ -138,6 +138,12 @@ handshake rather than fall back. Watch for it before it is common.
 
 ## Found along the way
 
+- An idle kept socket does not count toward a Worker's six simultaneous
+  connections: the limit counts a `connect()` only while it is being opened,
+  and a request only until its headers arrive (the platform's limits page,
+  2026-10-19). A session per request left unclosed leaks sockets until the
+  invocation ends or `idleTimeoutMs` passes, but cannot wedge the next ones.
+
 - tls.peet.ws closes every connection after one answer, so it can never
   show connection reuse; count dials instead (`/reuse` in `dev/reuse.ts`).
 - aircanada.com (Akamai) answers the same build with a sensor page one

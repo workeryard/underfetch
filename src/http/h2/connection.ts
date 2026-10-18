@@ -129,6 +129,11 @@ export class Http2Connection {
     return this.#failure === undefined && this.#goaway === undefined && this.#nextId <= LAST_STREAM;
   }
 
+  /** Whether no stream is open on it. */
+  get idle(): boolean {
+    return this.#streams.size === 0;
+  }
+
   /** Hangs up: every open stream fails, and the socket is closed. */
   close(reason: Error = new Http2Error('the connection was closed')): void {
     this.#fail(reason);
@@ -146,9 +151,7 @@ export class Http2Connection {
     // Registered before anything is awaited, so no frame for it is missed.
     const stream = new Http2Stream(this.#nextId, this.#initialWindow, decoders);
     this.#nextId += 2;
-    const dependsOn = profile.dependOnOpen
-      ? dependency(this.#streams.values(), profile.priority)
-      : 0;
+    const dependsOn = dependency(this.#streams.values(), profile);
     stream.weight = profile.priority?.weight ?? 0;
     this.#streams.set(stream.id, stream);
     stream.watch(signal, (reason) => this.#cancel(stream, reason));
@@ -360,7 +363,8 @@ export class Http2Connection {
     stream.unlisten();
     if (!this.#streams.delete(stream.id) || this.#streams.size > 0) return;
     if (this.#goaway !== undefined) this.close();
-    else this.#options.onIdle?.();
+    // A connection that has failed or been closed is not idle, only gone.
+    else if (this.#failure === undefined) this.#options.onIdle?.();
   }
 
   #fail(error: Error): void {

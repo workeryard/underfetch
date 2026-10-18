@@ -413,8 +413,25 @@ the error is yours.
 ```ts
 const session = new Session({ impersonate: 'chrome' });
 await Promise.all(urls.map((url) => session.get(url))); // one connection per origin
-session.close(); // let them go; the session can carry on with new ones
+await session.close(); // let them go; the session can carry on with new ones
 ```
+
+A kept connection lives until the session is closed, or until it has carried
+nothing for `idleTimeoutMs` (60 s by default) — HTTP/1.1 or HTTP/2, whether or
+not anything is ever sent to that place again. Under Node that timer does not
+keep the process up. For a single request there is nothing to keep, so pick
+one of:
+
+```ts
+await get(url, { impersonate: 'chrome' }); // request(), get() and the rest close with the answer
+new Session({ impersonate: 'chrome', keepAlive: false }); // so does a session told not to keep
+{
+  using session = new Session({ impersonate: 'chrome' }); // closed when the block ends
+  await session.get(url);
+}
+```
+
+`await using` waits for the sockets to close, as `await session.close()` does.
 
 A connection belongs to the invocation that opened it: a Worker may not use
 a socket on behalf of another request. A session kept in global scope across
@@ -422,8 +439,6 @@ requests therefore opens a fresh connection in each; its first request there
 tries the old one, fails at once, and goes again, which workerd logs as a
 warning about a promise resolved from a different request context. Nothing
 waits on it. Make a session per request, or accept the warning.
-
-`keepAlive: false` closes each connection with its answer.
 
 ### Timing
 

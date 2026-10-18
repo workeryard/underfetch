@@ -30,8 +30,9 @@ export interface PoolOptions {
   /** Idle HTTP/1.1 connections kept per origin, as Chrome keeps six. Default: 6. */
   maxIdle?: number | undefined;
   /**
-   * How long an idle HTTP/1.1 connection is trusted to still be open. A
-   * server that hangs up sooner costs a resend, not an error. Default: 60 s.
+   * How long a connection with nothing to carry is kept, HTTP/1.1 or
+   * HTTP/2, before it is closed. A server that hangs up sooner costs a
+   * resend, not an error. Default: 60 s.
    */
   idleMs?: number | undefined;
 }
@@ -52,6 +53,35 @@ interface Idle {
   connection: Http1Connection;
   carrier: Carrier;
   since: number;
+  timer: Timer;
+}
+
+type Timer = ReturnType<typeof setTimeout>;
+
+/**
+ * Runs `fire` after `ms`, without keeping a Node process alive for it: an
+ * idle pool is no reason to stay up. Workers' timers have no `unref`.
+ */
+function later(ms: number, fire: () => void): Timer {
+  const timer = setTimeout(fire, ms);
+  (timer as { unref?: () => void }).unref?.();
+  return timer;
+}
+
+/** Workers' clearTimeout takes no undefined, where Node's and the DOM's do. */
+function cancel(timer: Timer | undefined): void {
+  if (timer !== undefined) clearTimeout(timer);
+}
+
+/** Closing a socket once, however many paths ask for it. */
+const closing = new WeakMap<Carrier, Promise<void>>();
+function shut(carrier: Carrier): Promise<void> {
+  let closed = closing.get(carrier);
+  if (closed === undefined) {
+    closed = carrier.socket.close().catch(() => undefined);
+    closing.set(carrier, closed);
+  }
+  return closed;
 }
 
 /** A connection to send on, and what opening it cost when it was just opened. */
@@ -102,6 +132,9 @@ export class ConnectionPool {
   readonly #maxIdle: number;
   readonly #idleMs: number;
   readonly #h2 = new Map<string, Http2Connection[]>();
+  /** Each HTTP/2 connection's socket, and its timer while it carries nothing. */
+  readonly #h2Carriers = new Map<Http2Connection, Carrier>();
+  readonly #h2Idle = new Map<Http2Connection, Timer>();
   readonly #idle = new Map<string, Idle[]>();
   /** HTTP/1.1 connections carrying an answer, so `close()` reaches them too. */
   readonly #busy = new Set<Carrier>();
@@ -154,16 +187,23 @@ export class ConnectionPool {
     return this.#on(await this.#open(key, open, options.http2), request, options);
   }
 
-  /** Closes every connection it holds. It can still be used after. */
-  close(): void {
+  /**
+   * Closes every connection it holds, answers still being read included, and
+   * resolves once their sockets are closed. No idle timer fires after. It
+   * can still be used after.
+   */
+  close(): Promise<void> {
+    for (const timer of this.#h2Idle.values()) clearTimeout(timer);
+    const idle = [...this.#idle.values()].flat();
+    for (const { timer } of idle) clearTimeout(timer);
     for (const list of this.#h2.values()) for (const connection of list) connection.close();
-    const idle = [...this.#idle.values()].flat().map(({ carrier }) => carrier);
-    for (const carrier of [...idle, ...this.#busy]) {
-      void carrier.socket.close().catch(() => undefined);
-    }
+    const carriers = [...this.#h2Carriers.values(), ...idle.map((i) => i.carrier), ...this.#busy];
     this.#h2.clear();
+    this.#h2Carriers.clear();
+    this.#h2Idle.clear();
     this.#idle.clear();
     this.#busy.clear();
+    return Promise.all(carriers.map(shut)).then(() => undefined);
   }
 
   /** A connection open to `key` that can take a request now, if there is one. */
@@ -171,18 +211,45 @@ export class ConnectionPool {
     const shared = this.#h2.get(key);
     if (shared !== undefined) {
       const alive = shared.filter((connection) => connection.alive);
+      for (const dead of shared.filter((connection) => !connection.alive)) this.#forget(dead);
       if (alive.length === 0) this.#h2.delete(key);
       else this.#h2.set(key, alive);
       const free = alive.find((connection) => connection.available);
-      if (free !== undefined) return { kind: 'h2', connection: free };
+      if (free !== undefined) {
+        // Busy again: its idle timer starts over when its streams are done.
+        cancel(this.#h2Idle.get(free));
+        this.#h2Idle.delete(free);
+        return { kind: 'h2', connection: free };
+      }
     }
     const idle = this.#idle.get(key);
     while (idle !== undefined && idle.length > 0) {
-      const { connection, carrier, since } = idle.pop()!;
+      const { connection, carrier, since, timer } = idle.pop()!;
+      clearTimeout(timer);
+      // The timer closes it at idleMs; a clock that skipped ahead, or a
+      // timer that never ran, is caught here.
       if (Date.now() - since <= this.#idleMs) return { kind: 'h1', connection, carrier, key };
-      void carrier.socket.close().catch(() => undefined);
+      void shut(carrier);
     }
     return undefined;
+  }
+
+  /** Lets go of an HTTP/2 connection that is gone or closed. */
+  #forget(connection: Http2Connection): void {
+    cancel(this.#h2Idle.get(connection));
+    this.#h2Idle.delete(connection);
+    this.#h2Carriers.delete(connection);
+  }
+
+  /** Closes an HTTP/2 connection that has carried nothing for idleMs. */
+  #expire(key: string, connection: Http2Connection): void {
+    this.#h2Idle.delete(connection);
+    if (!connection.idle) return;
+    connection.close();
+    this.#forget(connection);
+    const rest = (this.#h2.get(key) ?? []).filter((other) => other !== connection);
+    if (rest.length === 0) this.#h2.delete(key);
+    else this.#h2.set(key, rest);
   }
 
   async #open(
@@ -207,12 +274,24 @@ export class ConnectionPool {
         };
       }
       const connection: Http2Connection = new Http2Connection(carrier, profile, {
-        close: () => void carrier.socket.close().catch(() => undefined),
+        close: () => void shut(carrier),
         onIdle: () => {
-          if (!this.#keepAlive) connection.close();
+          if (!this.#keepAlive) {
+            connection.close();
+            return;
+          }
+          cancel(this.#h2Idle.get(connection));
+          if (!connection.alive || !this.#h2Carriers.has(connection)) return;
+          this.#h2Idle.set(
+            connection,
+            later(this.#idleMs, () => this.#expire(key, connection)),
+          );
         },
       });
-      if (this.#keepAlive) this.#h2.set(key, [...(this.#h2.get(key) ?? []), connection]);
+      if (this.#keepAlive) {
+        this.#h2.set(key, [...(this.#h2.get(key) ?? []), connection]);
+        this.#h2Carriers.set(connection, carrier);
+      }
       return { kind: 'h2', connection, phases: carrier.phases };
     })();
     this.#opening.set(key, opening);
@@ -248,7 +327,7 @@ export class ConnectionPool {
     // HTTP/1.1 cannot drop one request and keep the connection: giving up
     // means hanging up, which is also what unblocks a read going nowhere.
     const { connection, carrier, key } = opened;
-    const stop = () => void carrier.socket.close().catch(() => undefined);
+    const stop = () => void shut(carrier);
     signal.addEventListener('abort', stop, { once: true });
     this.#busy.add(carrier);
     const unlisten = () => {
@@ -280,10 +359,25 @@ export class ConnectionPool {
   #release(key: string, carrier: Carrier, connection: Http1Connection): void {
     const idle = this.#idle.get(key) ?? [];
     if (!this.#keepAlive || idle.length >= this.#maxIdle) {
-      void carrier.socket.close().catch(() => undefined);
+      void shut(carrier);
       return;
     }
-    idle.push({ connection, carrier, since: Date.now() });
+    const entry: Idle = {
+      connection,
+      carrier,
+      since: Date.now(),
+      // Closed at idleMs if nothing took it, so a place never asked for
+      // again does not keep its socket open.
+      timer: later(this.#idleMs, () => {
+        const list = this.#idle.get(key) ?? [];
+        const at = list.indexOf(entry);
+        if (at === -1) return;
+        list.splice(at, 1);
+        if (list.length === 0) this.#idle.delete(key);
+        void shut(carrier);
+      }),
+    };
+    idle.push(entry);
     this.#idle.set(key, idle);
   }
 }
