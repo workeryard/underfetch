@@ -36,6 +36,7 @@ import { firefox144 } from './firefox144';
 import { tor145 } from './tor145';
 import { safari170 } from './safari170';
 import { safari172_ios } from './safari172_ios';
+import { chrome155 } from './chrome155';
 import { firefox158 } from './firefox158';
 
 /** Every browser, curl-impersonate's targets in its order, then our own captures. */
@@ -75,5 +76,6 @@ export const captures = {
   tor145,
   safari170,
   safari172_ios,
+  chrome155,
   firefox158,
 } as const;

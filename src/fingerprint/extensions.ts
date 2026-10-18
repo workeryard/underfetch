@@ -9,10 +9,25 @@ import { GREASE } from './grease';
 /** What some of these bodies are made from; a capture carries all of it. */
 export interface VerbatimDetails {
   alps?: readonly string[] | undefined;
-  echPayload?: number | undefined;
+  /** One size, or several to pick from afresh for each hello. */
+  echPayload?: number | readonly number[] | undefined;
   delegatedCredentials?: readonly number[] | undefined;
   recordSizeLimit?: number | undefined;
+  /**
+   * Bodies sent as recorded, in hex, by extension type: extensions nothing
+   * here builds, such as Chrome's trust anchor IDs (0xca34).
+   */
+  bodies?: Readonly<Record<string, string>> | undefined;
 }
+
+const fromHex = (text: string) =>
+  new Uint8Array((text.match(/../g) ?? []).map((pair) => Number.parseInt(pair, 16)));
+
+/** A size from the list, at random; or the one size given. */
+const sized = (choice: number | readonly number[]) =>
+  typeof choice === 'number'
+    ? choice
+    : choice[crypto.getRandomValues(new Uint32Array(1))[0]! % choice.length]!;
 
 /** Extensions rustls builds, and so needs no body from us. */
 export const BUILT_BY_TLS: readonly number[] = [
@@ -90,7 +105,7 @@ export function verbatim(details: VerbatimDetails, type: number): Uint8Array | u
     case 0x44cd: // application_settings
       return alps(...(details.alps ?? ['h2']));
     case 0xfe0d: // encrypted_client_hello
-      return greaseEch(details.echPayload ?? 176);
+      return greaseEch(sized(details.echPayload ?? 176));
     case 0x0022: // delegated_credentials
       return schemeList(...(details.delegatedCredentials ?? []));
     case 0x001c: {
@@ -98,8 +113,10 @@ export function verbatim(details: VerbatimDetails, type: number): Uint8Array | u
       const limit = details.recordSizeLimit ?? 16385;
       return bytes(limit >> 8, limit & 0xff);
     }
-    default:
-      return undefined;
+    default: {
+      const recorded = details.bodies?.[String(type)];
+      return recorded === undefined ? undefined : fromHex(recorded);
+    }
   }
 }
 

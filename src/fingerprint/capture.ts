@@ -37,6 +37,11 @@ export interface Capture {
   echPayload?: number | undefined;
   delegatedCredentials?: readonly number[] | undefined;
   recordSizeLimit?: number | undefined;
+  /**
+   * Bodies of extensions nothing here builds, in hex by type, as the browser
+   * sent them: Chrome 155's trust anchor IDs (0xca34), for one.
+   */
+  bodies?: Readonly<Record<string, string>> | undefined;
   http2: Http2Profile;
   /** Every header the browser sent, in its order. */
   headers: readonly (readonly [string, string])[];

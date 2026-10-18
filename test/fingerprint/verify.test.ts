@@ -76,6 +76,21 @@ describe('self-verification', () => {
     expect(extensions).toHaveLength(12);
   });
 
+  it('drops GREASE from the signature algorithms, as Chrome 155 leads with one', async () => {
+    // Two of real Chrome 155's hellos, GREASE 0xdada and 0x9a9a in front of
+    // the same list; tls.peet.ws gave both t13d1517h2_8daaf6152771_cb7bf5808d99.
+    const hello = (grease: number) => ({
+      ciphers: [0x1301],
+      extensions: [0x0000, 0x000d],
+      signatureSchemes: [grease, 0x0904, 0x0403],
+      alpn: ['h2'],
+      hasServerName: true,
+    });
+    const plain = { ...hello(0), signatureSchemes: [0x0904, 0x0403] };
+    expect(await ja4(hello(0xdada))).toBe(await ja4(plain));
+    expect(await ja4(hello(0x9a9a))).toBe(await ja4(plain));
+  });
+
   it('writes the Akamai fingerprint in its usual shape', () => {
     expect(akamai(profiles.chrome.http2)).toBe('1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p');
     // Firefox and Safari differ in every field, which is the point of it.

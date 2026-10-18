@@ -60,7 +60,7 @@ describe('restoredProfile', () => {
 
   it('restores the browser it was saved as, by name or by an alias of it', () => {
     expect(restoredProfile(chrome, undefined, named)).toBe(profiles.chrome);
-    expect(restoredProfile(chrome, profiles.chrome150, named)).toBe(profiles.chrome150);
+    expect(restoredProfile(chrome, profiles.chrome155, named)).toBe(profiles.chrome155);
   });
 
   it('refuses another browser', () => {

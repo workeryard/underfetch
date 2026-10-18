@@ -141,7 +141,15 @@ export async function ja4(hello: ClientHello, transport: 't' | 'q' = 't'): Promi
   return [
     prefix,
     await sha256([...ciphers].sort().join(',')),
-    await sha256(`${hashed.join(',')}_${hello.signatureSchemes.map(hex).join(',')}`),
+    // GREASE goes from the signature algorithms too, which Chrome 155 began
+    // leading with one: tls.peet.ws gave two of its hellos, with different
+    // GREASE there, the same JA4.
+    await sha256(
+      `${hashed.join(',')}_${hello.signatureSchemes
+        .filter((s) => !isGrease(s))
+        .map(hex)
+        .join(',')}`,
+    ),
   ].join('_');
 }
 

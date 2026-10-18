@@ -114,9 +114,22 @@ const STREAMS: Partial<Record<Family, Partial<Http2Profile>>> = {
   firefox: { firstStream: 3, streamWindowUpdate: 12_451_840 },
 };
 
+/**
+ * BoringSSL, under every Chromium, sizes its GREASE ECH payload afresh for
+ * each hello: 32 times a random 4 to 7, plus the AEAD's 16 bytes of overhead
+ * (`setup_ech_grease` in ssl/encrypted_client_hello.cc). Chrome 155 was seen
+ * sending 144, 176 and 240 on three connections; one size every time, as the
+ * captures record, would itself stand out.
+ */
+const BORINGSSL_ECH_PAYLOADS = [144, 176, 208, 240] as const;
+
 /** A profile that sends what the captured browser sent. */
 function fromCapture(capture: Capture): Impersonation {
   const family = familyOf(capture.source);
+  const details =
+    family === 'chromium' && capture.echPayload !== undefined
+      ? { ...capture, echPayload: BORINGSSL_ECH_PAYLOADS }
+      : capture;
   return {
     alpn: capture.alpn,
     http2: { ...capture.http2, ...(family === undefined ? {} : STREAMS[family]) },
@@ -129,7 +142,7 @@ function fromCapture(capture: Capture): Impersonation {
     extensionOrder: capture.shuffled ? undefined : capture.extensions,
     extensions: () =>
       capture.extensions.flatMap((type): Extension[] => {
-        const body = verbatim(capture, type);
+        const body = verbatim(details, type);
         return body === undefined ? [] : [[type, body]];
       }),
     headers: capture.headers,
@@ -146,12 +159,12 @@ const targets = Object.fromEntries(
 
 /**
  * Every browser, by the names impers gives them, plus the short names it
- * points at the newest of each. Firefox's newest is 158, recorded here
- * (captures/), past impers' 147, of which no capture was published.
+ * points at the newest of each. Chrome's newest is 155 and Firefox's 158,
+ * both recorded here (captures/), past any capture curl-impersonate has.
  */
 export const profiles = {
   ...targets,
-  chrome: targets.chrome150,
+  chrome: targets.chrome155,
   chrome_android: targets.chrome131_android,
   edge: targets.edge101,
   firefox: targets.firefox158,

@@ -164,9 +164,26 @@ describe('the ClientHello', () => {
       '002d', // psk_key_exchange_modes
       '0033', // key_share
       '44cd', // application_settings
+      'ca34', // trust anchor IDs, new in Chrome 155, sent as recorded
       'fe0d', // encrypted_client_hello
       'ff01', // renegotiation_info
     ]);
+  });
+
+  it("leads Chrome 155's signature algorithms with GREASE, then ML-DSA", () => {
+    const { signatureSchemes } = hello();
+    expect(isGrease(signatureSchemes[0]!)).toBe(true);
+    expect(signatureSchemes.slice(1, 4)).toEqual([0x0904, 0x0905, 0x0906]);
+  });
+
+  it('sizes the GREASE ECH payload afresh, from the four sizes BoringSSL picks', () => {
+    const sizes = new Set<number>();
+    for (let i = 0; i < 64; i++) {
+      const body = profiles.chrome.extensions().find(([type]) => type === 0xfe0d)![1];
+      // outer, KDF, AEAD, config id, a 32-byte key with its length, then the payload's.
+      sizes.add(new DataView(body.buffer, body.byteOffset).getUint16(1 + 2 + 2 + 1 + 2 + 32));
+    }
+    expect([...sizes].sort()).toEqual([144, 176, 208, 240]);
   });
 
   it('matches Chrome 133 in both halves of its JA4', () => {

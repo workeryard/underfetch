@@ -7,6 +7,22 @@ platform's documentation. Newest first within each section.
 
 ## Taken
 
+**Our own capture of Chrome 155** (2026-10-19), from a visible window, as
+headless Chrome's user-agent says `HeadlessChrome`. Three things in it are
+new to the captures: GREASE leading the signature algorithms, the ML-DSA
+schemes (0x0904–0x0906) after it, and trust anchor IDs (0xca34), sent with
+the 186-byte body Chrome sent. Our JA4 kept GREASE in the signature
+algorithms, which no capture had needed; tls.peet.ws gave real Chrome 155's
+hellos, with different GREASE there, one JA4, so ours now drops it too.
+`chrome155` matches it, passed 81 of 81 live cases and 20 of 22 bot-managed
+sites, one more than `chrome150`.
+
+**GREASE ECH sized afresh for each Chromium hello** (2026-10-19). BoringSSL's
+`setup_ech_grease` picks 32 × 4–7 plus 16 bytes of AEAD overhead — 144, 176,
+208 or 240 — every handshake; Chrome 155 was seen sending three of them. Every
+Chromium profile sent 176 every time. Read in BoringSSL's source, not taken
+from a summary.
+
 **Our own capture of Firefox 158** (2026-10-18). curl-impersonate, as of
 2026-10-07, has no Firefox past 144 and no Chrome past 150, so impers sends
 year-old browsers too. Firefox 158 loaded The New York Times, DigiKey and
@@ -108,10 +124,10 @@ came from; Firefox 158 sent 240 to `localhost`. NSS may size it by the server
 name, which would make any single number wrong somewhere. Not changed until
 measured against hosts of different lengths. JA4 does not read it.
 
-**A Chrome 155 capture.** Chrome's JA4 moved from `t13d1516` (150) to
-`t13d1518`, and its `accept` gained `image/jxl`. Headless Chrome names itself
-`HeadlessChrome` in its user-agent, so a capture has to come from a visible
-window, which has not been done yet.
+**A server choosing ML-DSA.** Chrome 155 offers ML-DSA signatures and so do
+we, but the TLS module cannot verify one. No public server is known to hold
+an ML-DSA certificate yet; one that does and picks it would fail the
+handshake rather than fall back. Watch for it before it is common.
 
 ## Found along the way
 

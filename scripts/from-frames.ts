@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GREASE } from '../src/fingerprint/grease';
 import type { Capture } from '../src/fingerprint/capture';
+import { BUILT_BY_TLS } from '../src/fingerprint/extensions';
 
 const [input, name, source] = process.argv.slice(2);
 if (!input || !name || !source) {
@@ -121,6 +122,12 @@ if (ech) {
     notes.push(`ECH sent KDF ${kdf}, AEAD ${aead}, key ${keyLength}; we send 1, 1, 32`);
   }
 }
+// Extensions neither rustls nor extensions.ts builds go as recorded.
+const known = [...BUILT_BY_TLS, 0xff01, 0x0012, 0x0015, 0x4469, 0x44cd, 0xfe0d, 0x0022, 0x001c];
+const recorded: Record<string, string> = {};
+for (const [type, body] of bodies) {
+  if (!isGrease(type) && !known.includes(type)) recorded[String(type)] = body.toString('hex');
+}
 const delegated = bodies.get(0x0022);
 const recordSize = bodies.get(0x001c);
 const signatures = bodies.get(0x000d);
@@ -133,7 +140,7 @@ const browser = source.split('_')[0]!;
 const capture: Omit<Capture, 'expected'> = {
   source,
   ciphers: ciphers.map(normal),
-  signatureSchemes: signatures ? list16(signatures) : [],
+  signatureSchemes: signatures ? list16(signatures).map(normal) : [],
   greaseNamedGroup: groups.length > 0 && isGrease(groups[0]!),
   namedGroups: groups.map(normal).filter((g) => g !== 0x6399),
   keyShares: keyShares.filter((g) => g !== 0x6399),
@@ -146,6 +153,7 @@ const capture: Omit<Capture, 'expected'> = {
   ...(echPayload === undefined ? {} : { echPayload }),
   ...(delegated ? { delegatedCredentials: list16(delegated) } : {}),
   ...(recordSize ? { recordSizeLimit: recordSize.readUInt16BE(0) } : {}),
+  ...(Object.keys(recorded).length > 0 ? { bodies: recorded } : {}),
   http2: {
     settings,
     windowUpdate: windowUpdate ?? 0,

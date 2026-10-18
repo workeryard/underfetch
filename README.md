@@ -487,7 +487,7 @@ different TLS stack means implementing six methods.
 | Redirects, with credentials dropped across hosts  | yes                            |
 | HTTP/2, with HPACK and flow control               | yes                            |
 | Connections kept, HTTP/2 multiplexed              | yes, per session               |
-| Browser impersonation, TLS and HTTP/2             | 36 browsers, see below         |
+| Browser impersonation, TLS and HTTP/2             | 37 browsers, see below         |
 | Cookies, with domain and path scoping             | yes                            |
 | Retries, idempotent methods only by default       | yes                            |
 | Basic, Bearer and Digest authentication           | yes, Digest in MD5 and SHA-256 |
@@ -506,26 +506,26 @@ nothing else on the web omits it. Ask for a browser instead:
 const session = new Session({ impersonate: 'chrome' });
 ```
 
-Thirty-six browsers are built in, under the names impers gives them, and
+Thirty-seven browsers are built in, under the names impers gives them, and
 both fingerprints a server reads match the real browser for each — JA4 from
 the handshake, and the Akamai string from the HTTP/2 settings:
 
-| family         | profiles                                                                                                                                                                                        |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chrome         | `chrome99` `chrome100` `chrome101` `chrome104` `chrome107` `chrome110` `chrome116` `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` |
-| Chrome Android | `chrome99_android` `chrome131_android`                                                                                                                                                          |
-| Edge           | `edge99` `edge101`                                                                                                                                                                              |
-| Firefox        | `firefox133` `firefox135` `firefox144` `firefox158`                                                                                                                                             |
-| Safari         | `safari153` `safari155` `safari170` `safari180` `safari184` `safari260` `safari2601`                                                                                                            |
-| Safari iOS     | `safari172_ios` `safari180_ios` `safari184_ios` `safari260_ios`                                                                                                                                 |
-| Tor            | `tor145`                                                                                                                                                                                        |
+| family         | profiles                                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome         | `chrome99` `chrome100` `chrome101` `chrome104` `chrome107` `chrome110` `chrome116` `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` `chrome155` |
+| Chrome Android | `chrome99_android` `chrome131_android`                                                                                                                                                                      |
+| Edge           | `edge99` `edge101`                                                                                                                                                                                          |
+| Firefox        | `firefox133` `firefox135` `firefox144` `firefox158`                                                                                                                                                         |
+| Safari         | `safari153` `safari155` `safari170` `safari180` `safari184` `safari260` `safari2601`                                                                                                                        |
+| Safari iOS     | `safari172_ios` `safari180_ios` `safari184_ios` `safari260_ios`                                                                                                                                             |
+| Tor            | `tor145`                                                                                                                                                                                                    |
 
 `chrome`, `chrome_android`, `edge`, `firefox`, `safari`, `safari_ios` and
 `tor` name the newest of each. The defaults, for instance:
 
 | profile   | JA4                                    | Akamai                                                 |
 | --------- | -------------------------------------- | ------------------------------------------------------ |
-| `chrome`  | `t13d1516h2_8daaf6152771_806a8c22fdea` | `1:65536;2:0;4:6291456;6:262144\|15663105\|0\|m,a,s,p` |
+| `chrome`  | `t13d1517h2_8daaf6152771_cb7bf5808d99` | `1:65536;2:0;4:6291456;6:262144\|15663105\|0\|m,a,s,p` |
 | `firefox` | `t13d1517h2_8daaf6152771_3cbfd9057e0d` | `1:65536;2:0;4:131072;5:16384\|12517377\|0\|m,p,a,s`   |
 | `safari`  | `t13d2013h2_a09f3c656075_7f0f34a4126d` | `2:0;3:100;4:2097152;9:1\|10420225\|0\|m,s,a,p`        |
 
@@ -629,14 +629,20 @@ the browser itself: `scripts/capture-frames.ts` logs its ClientHello and every
 HTTP/2 frame while it loads a local page, `scripts/from-frames.ts` turns that
 into a capture in `captures/`, and `import:browsers` reads it beside the
 others, computing what it must match the same way. `firefox158` came from
-Firefox 158 on Windows, on 2026-10-18; `firefox` names it.
+Firefox 158 on Windows, on 2026-10-18, and `chrome155` from Chrome 155 on
+Windows the day after, in a visible window, since headless Chrome names
+itself `HeadlessChrome`; `firefox` and `chrome` name them. Chrome 155 brought
+three things no capture had: a GREASE value leading its signature
+algorithms, the ML-DSA ones after it, and trust anchor IDs (0xca34), whose
+body goes out as recorded.
 
 It was worth doing. Against the sites behind bot managers (`/cases?only=waf`),
 `firefox` — then 144 — passed 16 of 22. Swapping one layer at a time on the
 three it lost that Firefox 158 itself loaded showed why: MarketWatch
 (DataDome) wanted a current user-agent, DigiKey (Cloudflare) refused 158's
 user-agent over 144's handshake, and The New York Times took neither alone.
-With both from 158 it passed 20 of 22, as many as `chrome`.
+With both from 158 it passed 20 of 22; `chrome155` passes 20 as well,
+`chrome150` 19.
 
 A session saved under a short name that has since moved on, such as
 `firefox` saved as 144, is restored as the browser it was earned as; new
