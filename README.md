@@ -87,6 +87,43 @@ connections and sends what it can down one already open (see
 new host still cost one each. And requests leave from Cloudflare's addresses
 unless a proxy says otherwise; some sites limit those (Google answered 429).
 
+## How it works
+
+Every request takes the same path down, each layer plain TypeScript except
+TLS:
+
+```
+session.fetch(url)
+  │  redirects, retries, cookies, auth          client/
+  │  the browser's headers, in its order        fingerprint/
+  ▼
+connection pool ── a kept connection? ── yes ──▶ send on it
+  │ no
+  ▼
+connect()  ──▶  proxy handshake  ──▶  TLS  ──▶  HTTP/1.1 or HTTP/2
+cloudflare:     SOCKS5, SOCKS4a,      rustls in   ALPN decides; one HTTP/2
+sockets         HTTP(S) CONNECT       WebAssembly connection per origin
+  net/          net/                  rust-tls/   http/
+```
+
+- **The socket** is the Worker's own `connect()`, to the proxy when there
+  is one, else to the target.
+- **The proxy** is asked for the target by name, so DNS is resolved at the
+  proxy and the Worker never looks the name up.
+- **TLS** is rustls, compiled to WebAssembly and driven as a state machine:
+  JavaScript moves the bytes, rustls checks the certificate against the
+  target's name — which is why the proxy never sees the request. A fork of
+  it writes the ClientHello a browser profile describes: ciphers, extensions
+  and their order, GREASE, key shares and ML-KEM.
+- **HTTP/2** opens with the browser's SETTINGS, window and priorities, and
+  numbers its streams as the browser does; **headers** go out in the
+  browser's order, as measured from the browsers themselves.
+- **The answer** is a plain `Response` whose body streams as it arrives.
+
+Each layer takes the one below it as an argument, which is how all of it is
+tested in plain Node against in-memory sockets, and how the core runs
+outside a Worker; see [Without the Workers adapter](#without-the-workers-adapter).
+
 ## Why TLS is done here
 
 `connect()` reaches a proxy, and `startTls({ expectedServerHostname })` looks

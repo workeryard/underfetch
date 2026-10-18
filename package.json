@@ -1,9 +1,22 @@
 {
   "name": "underfetch",
   "version": "0.1.0",
-  "description": "HTTP over raw sockets for Cloudflare Workers: SOCKS5 and HTTP CONNECT proxies, TLS in WebAssembly, and a ClientHello you control.",
+  "description": "HTTP over raw sockets for Cloudflare Workers: SOCKS and HTTP(S) proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look like Chrome, Firefox or Safari.",
   "type": "module",
   "license": "MIT",
+  "author": "0x4d4d4f (https://github.com/0x4d4d4f)",
+  "homepage": "https://github.com/workeryard/underfetch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/workeryard/underfetch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/workeryard/underfetch/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/0x4d4d4f"
+  },
   "keywords": [
     "cloudflare-workers",
     "socks5",
@@ -11,7 +24,11 @@
     "tls",
     "fetch",
     "http-connect",
-    "fingerprint"
+    "fingerprint",
+    "http2",
+    "workerd",
+    "browser-impersonation",
+    "ja4"
   ],
   "exports": {
     ".": "./src/index.ts",
