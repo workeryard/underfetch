@@ -30,7 +30,6 @@ carried anyone's production traffic, and:
   releases; a profile matches the browser it was recorded from, and a site
   may start telling it apart once that browser is old. They are re-recorded
   as browsers move on, not on a schedule.
-- **It is not on npm yet**; see [Install](#install).
 - **The TLS is a fork of rustls**, compiled to WebAssembly, with no security
   review of its own. The fork changes how the ClientHello is written, and
   tolerates what a server sends back to a browser's extensions: it skips
@@ -39,7 +38,7 @@ carried anyone's production traffic, and:
   the handshake. The certificates themselves are verified by webpki,
   unchanged.
 
-Pin a commit, and read the changelog before moving it.
+Pin an exact version, and read the changelog before moving it.
 
 ## Who it is for
 
@@ -174,11 +173,8 @@ needs Rust, using it does not).
 
 ## Install
 
-It will be published as `@workeryard/underfetch`. Until then, depend on a
-checkout, under the name the imports use:
-
 ```
-pnpm add @workeryard/underfetch@link:../underfetch
+npm install @workeryard/underfetch
 ```
 
 Your `wrangler.jsonc` needs the WebAssembly rule:

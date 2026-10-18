@@ -5,7 +5,7 @@ Notable changes, newest first. The format follows
 [Semantic Versioning](https://semver.org/) — until 1.0.0, a minor version may
 change the API.
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-10-19
 
 The first release.
 
