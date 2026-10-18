@@ -13,10 +13,6 @@
   "bugs": {
     "url": "https://github.com/workeryard/underfetch/issues"
   },
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/0x4d4d4f"
-  },
   "keywords": [
     "cloudflare-workers",
     "socks5",
