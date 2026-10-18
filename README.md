@@ -31,9 +31,13 @@ carried anyone's production traffic, and:
   may start telling it apart once that browser is old. They are re-recorded
   as browsers move on, not on a schedule.
 - **It is not on npm yet**; see [Install](#install).
-- **The TLS is a fork of rustls**, compiled to WebAssembly, and has had no
-  security review of its own. The fork changes how the ClientHello is
-  written, not how certificates are checked.
+- **The TLS is a fork of rustls**, compiled to WebAssembly, with no security
+  review of its own. The fork changes how the ClientHello is written, and
+  tolerates what a server sends back to a browser's extensions: it skips
+  extensions it does not implement in the server's Certificate message, such
+  as the certificate timestamps a browser asks for, where rustls would fail
+  the handshake. The certificates themselves are verified by webpki,
+  unchanged.
 
 Pin a commit, and read the changelog before moving it.
 
