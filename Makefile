@@ -36,7 +36,7 @@ WASM    = rust-tls/pkg/underfetch_tls_bg.wasm
 
 .DEFAULT_GOAL := help
 .PHONY: help install check test typecheck typecheck-workers lint format verify wasm wasm-size notices \
-        import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
+        consumer-check import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
         resume state live fetch deploy probe-token clean
 
 help: ## list the targets
@@ -73,6 +73,12 @@ typecheck-workers: ## typecheck src/ the way a Worker project compiles it
 	fi
 	npx tsc -p tsconfig.workers.json
 	@echo "src/ typechecks under @cloudflare/workers-types $$(node -p "require('./$(WORKERS_TYPES)/package.json').version")"
+
+# What only a project that installs the package sees: the tarball, packed and
+# installed into a throwaway Worker project, then typechecked. Run before a
+# release; 0.1.0 shipped a .wasm import that failed only there.
+consumer-check: typecheck-workers ## typecheck the packed package as an installing Worker project would
+	@bash scripts/consumer-check.sh
 
 verify: ## every profile's JA4 and Akamai string, offline
 	pnpm verify

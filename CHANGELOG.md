@@ -5,6 +5,24 @@ Notable changes, newest first. The format follows
 [Semantic Versioning](https://semver.org/) — until 1.0.0, a minor version may
 change the API.
 
+## 0.1.1 — unreleased
+
+### Fixed
+
+- A project installing the package from npm failed to typecheck: TypeScript
+  read the `.wasm` import through the declaration wasm-bindgen writes, which
+  has no default export. The declaration now says what Wrangler and Vite
+  hand over, a `WebAssembly.Module`. Running was never affected.
+
+### Changed
+
+- The readme says what the package needs to be read: a bundler or tsx, or
+  `"moduleResolution": "Bundler"`. A `NodeNext` project cannot import it
+  yet, which "runs anywhere" had not said.
+- `make consumer-check` packs the package, installs it into a throwaway
+  Worker project and typechecks it there, with and without `using`; it runs
+  before every release.
+
 ## 0.1.0 — 2026-10-19
 
 The first release.

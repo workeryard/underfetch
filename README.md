@@ -177,6 +177,12 @@ needs Rust, using it does not).
 npm install @workeryard/underfetch
 ```
 
+The package ships its TypeScript source, so it is read by a bundler: Wrangler,
+Vite, esbuild or tsx, or `tsc` with `"moduleResolution": "Bundler"`, as a
+Worker project has it. A project that compiles with `NodeNext`, or runs plain
+`node`, cannot import it yet. `using` and `await using` need TypeScript's
+`ESNext.Disposable` lib, as they do for any library.
+
 Your `wrangler.jsonc` needs the WebAssembly rule:
 
 ```jsonc
@@ -549,8 +555,9 @@ of it, are. On httpbin.org, some 250 ms away, a first request read
 ### Without the Workers adapter
 
 The protocol layer names no runtime. Supply your own socket and TLS and it runs
-anywhere — which is also how the test suite covers it, against in-memory
-streams rather than a network:
+outside a Worker — which is also how the test suite covers it, in Node, against
+in-memory streams rather than a network. It is still read through a bundler or
+tsx; see [Install](#install).
 
 ```ts
 import { fetchOver } from '@workeryard/underfetch';
@@ -916,6 +923,7 @@ make live AS=chrome              # fingerprints, the case matrix, resumption
 make state AS=chrome             # save a session, restart, load it back
 make fetch URL=https://… PROXY=socks5://host:1080
 make dev-stop
+make consumer-check              # the packed package, typechecked as a Worker project would
 ```
 
 Why something was taken from another client, or left out, is in

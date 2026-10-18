@@ -125,6 +125,14 @@ UDP, and the runtime owns the socket below TLS.
 
 ## Open
 
+**A build for Node.** The package ships TypeScript source with
+extensionless imports, which a bundler, tsx or `"moduleResolution":
+"Bundler"` reads and a `NodeNext` project or plain `node` does not: 48
+errors, measured 2026-10-19 on the packed 0.1.1. Every Worker project reads
+it, so it ships as is; compiling to JavaScript with declarations, and
+checking that with `make consumer-check` under `NodeNext`, is the fix when
+someone needs it outside a bundler.
+
 **A server choosing ML-DSA.** Chrome 155 offers ML-DSA signatures and so do
 we, but the TLS module cannot verify one. No public server is known to hold
 an ML-DSA certificate yet; one that does and picks it would fail the

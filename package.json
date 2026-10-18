@@ -1,6 +1,6 @@
 {
   "name": "@workeryard/underfetch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HTTP over raw sockets for Cloudflare Workers: SOCKS and HTTP(S) proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look like Chrome, Firefox or Safari.",
   "type": "module",
   "license": "MIT",
@@ -47,7 +47,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "build:wasm": "cd rust-tls && wasm-pack build --target web --out-dir pkg --out-name underfetch_tls",
+    "build:wasm": "cd rust-tls && wasm-pack build --target web --out-dir pkg --out-name underfetch_tls && cp wasm.d.ts pkg/underfetch_tls_bg.wasm.d.ts",
     "verify": "tsx scripts/verify.ts",
     "verify:live": "wrangler dev --port 8799",
     "import:browsers": "tsx scripts/import-browsers.ts"
