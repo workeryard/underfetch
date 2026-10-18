@@ -1,5 +1,5 @@
 {
-  "name": "underfetch",
+  "name": "@workeryard/underfetch",
   "version": "0.1.0",
   "description": "HTTP over raw sockets for Cloudflare Workers: SOCKS and HTTP(S) proxies, TLS in WebAssembly, HTTP/1.1 and HTTP/2, and a handshake that can look like Chrome, Firefox or Safari.",
   "type": "module",
@@ -66,5 +66,8 @@
   "packageManager": "pnpm@10.33.4",
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

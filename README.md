@@ -9,7 +9,7 @@ Without one it reaches any site not served through Cloudflare; a site that is
 cannot be reached from a Worker's socket at all — see below.
 
 ```ts
-import { Session } from 'underfetch/workers';
+import { Session } from '@workeryard/underfetch/workers';
 
 const session = new Session({
   proxy: { kind: 'socks5', hostname: '203.0.113.7', port: 1080 },
@@ -174,10 +174,11 @@ needs Rust, using it does not).
 
 ## Install
 
-It is not on npm yet. Depend on a checkout instead:
+It will be published as `@workeryard/underfetch`. Until then, depend on a
+checkout, under the name the imports use:
 
 ```
-pnpm add link:../underfetch
+pnpm add @workeryard/underfetch@link:../underfetch
 ```
 
 Your `wrangler.jsonc` needs the WebAssembly rule:
@@ -191,7 +192,7 @@ Your `wrangler.jsonc` needs the WebAssembly rule:
 ## Using it
 
 ```ts
-import { Session } from 'underfetch/workers';
+import { Session } from '@workeryard/underfetch/workers';
 
 // No proxy: straight off a socket, without the cf-* headers.
 const direct = new Session();
@@ -249,7 +250,7 @@ For one request, skip the session — each of these opens a connection of its
 own and closes it with the answer:
 
 ```ts
-import { get, post, request } from 'underfetch/workers';
+import { get, post, request } from '@workeryard/underfetch/workers';
 
 await get('https://api.example.com/v1/models', { impersonate: 'chrome' });
 await post('https://api.example.com/token', { form: { grant_type: 'client_credentials' } });
@@ -526,7 +527,7 @@ waits on it. Make a session per request, or accept the warning.
 ### Timing
 
 ```ts
-import { timingOf } from 'underfetch/workers';
+import { timingOf } from '@workeryard/underfetch/workers';
 
 const response = await session.get(url);
 await response.text();
@@ -556,7 +557,7 @@ anywhere — which is also how the test suite covers it, against in-memory
 streams rather than a network:
 
 ```ts
-import { fetchOver } from 'underfetch';
+import { fetchOver } from '@workeryard/underfetch';
 
 await fetchOver(request, { dial, tls, proxy });
 ```
@@ -796,7 +797,7 @@ whole profile yourself and pass it as `impersonate`. It is an `Impersonation`,
 the type every built-in profile is:
 
 ```ts
-import { GREASE, Session, type Impersonation } from 'underfetch/workers';
+import { GREASE, Session, type Impersonation } from '@workeryard/underfetch/workers';
 
 const myBrowser: Impersonation = {
   alpn: ['h2', 'http/1.1'],
@@ -877,7 +878,7 @@ through a real Worker and asks a server what it saw:
 pnpm verify:live     # then: curl localhost:8799
 ```
 
-In code, `selfTest()` from `underfetch/workers` returns the same verdicts, so a
+In code, `selfTest()` from `@workeryard/underfetch/workers` returns the same verdicts, so a
 Worker can check itself wherever it runs.
 
 ## Layout
