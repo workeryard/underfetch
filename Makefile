@@ -88,7 +88,7 @@ wasm-size: ## how big the committed wasm is
 
 import-browsers: ## regenerate the browsers from curl-impersonate's captures
 	pnpm import:browsers
-	pnpm -s prettier --write src/fingerprint/browsers.ts
+	pnpm -s prettier --write src/fingerprint/browsers/
 
 # The dev server caches the wasm, so a stale .wrangler measures the previous
 # build; it is cleared on every start.

@@ -608,7 +608,7 @@ gets asked again with only the schemes that can be checked. That second
 ClientHello is not the browser's, but it only goes to a server that would
 otherwise have been unreachable.
 
-The browsers are data, not code: `src/fingerprint/browsers.ts`, generated from
+The browsers are data, not code: `src/fingerprint/browsers/`, a module each, generated from
 [curl-impersonate](https://github.com/lexiforest/curl-impersonate)'s
 `tests/signatures`, which are ClientHellos and HTTP/2 openings captured from
 the real browsers — the same data impers is tested against. The fingerprints

@@ -6,13 +6,13 @@
  * from here. That makes a browser a table of numbers rather than a change to
  * any Rust: to add one, copy its ClientHello and write it down.
  *
- * The browsers themselves are data, in `browsers.ts`, imported from
+ * The browsers themselves are data, in `browsers/`, imported from
  * curl-impersonate's captures of real browsers; this turns one into what the
  * TLS module and the HTTP/2 client take.
  */
 
 import { familyOf, type Family } from './order';
-import { captures } from './browsers';
+import { captures } from './browsers/index';
 import { verbatim } from './extensions';
 import type { Capture } from './capture';
 import { GREASE } from './grease';
