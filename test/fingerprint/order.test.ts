@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   arrange,
   headerOrder,
+  requestOrder,
   resourceHeaders,
   resourceWeight,
   ResourceError,
+  type Resource,
 } from '../../src/fingerprint/order';
 import { profiles } from '../../src/fingerprint/profiles';
 
@@ -187,6 +189,22 @@ describe('header order', () => {
     expect(sent(chrome, 'fetch', ['pragma', 'cache-control', 'referer', 'cookie'])).toEqual(
       EDGE_153.noStore,
     );
+  });
+
+  it("puts Brave's sec-gpc straight after accept, page load and fetch() alike", () => {
+    const names = (resource: Resource) =>
+      arrange(
+        resourceHeaders(profiles.brave, resource),
+        requestOrder(
+          profiles.brave,
+          resource,
+          resourceHeaders(profiles.brave, resource).map(([n]) => n),
+        ),
+      ).map(([n]) => n);
+    for (const resource of ['document', 'fetch'] as const) {
+      const order = names(resource);
+      expect(order[order.indexOf('accept') + 1], resource).toBe('sec-gpc');
+    }
   });
 
   it('writes Firefox as Firefox 153 did', () => {

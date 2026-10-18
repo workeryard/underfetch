@@ -49,6 +49,7 @@ const CHROMIUM_DOCUMENT = [
   'user-agent',
   'origin',
   'accept',
+  'sec-gpc', // Brave's alone, measured where it puts it
   'sec-fetch-site',
   'sec-fetch-mode',
   'sec-fetch-user',
@@ -72,6 +73,7 @@ const CHROMIUM_FETCH = [
   'content-type',
   'sec-ch-ua-mobile',
   'accept',
+  'sec-gpc', // Brave's alone, measured where it puts it
   'origin',
   'sec-fetch-site',
   'sec-fetch-mode',
@@ -243,7 +245,7 @@ export function resourceWeight(profile: Impersonation, resource: Resource): numb
 /** The family a capture's source names: `chrome_150…`, `firefox_144…`. */
 export function familyOf(source: string): Family | undefined {
   const browser = source.split('_')[0];
-  if (browser === 'chrome' || browser === 'edge') return 'chromium';
+  if (browser === 'chrome' || browser === 'edge' || browser === 'brave') return 'chromium';
   if (browser === 'firefox' || browser === 'tor') return 'firefox';
   if (browser === 'safari') return 'safari';
   return undefined;

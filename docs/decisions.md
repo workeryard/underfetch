@@ -7,6 +7,13 @@ platform's documentation. Newest first within each section.
 
 ## Taken
 
+**Edge 155 and Brave 154, recorded** (2026-10-19), the same way as Chrome 155. `edge` named Edge 101 until then. Neither sends Chrome 155's trust
+anchor IDs, so their JA4 is Chrome 150's; Brave puts `sec-gpc: 1` straight
+after `accept` on every kind of request, which the Chromium header tables
+now place there. Brave was 154 because its update to 155 waits on a restart
+of the user's own browser, which was not ours to do. Not yet run against
+the bot-managed sites: the day's run had gone to Chrome 155.
+
 **Our own capture of Chrome 155** (2026-10-19), from a visible window, as
 headless Chrome's user-agent says `HeadlessChrome`. Three things in it are
 new to the captures: GREASE leading the signature algorithms, the ML-DSA

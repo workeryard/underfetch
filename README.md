@@ -487,7 +487,7 @@ different TLS stack means implementing six methods.
 | Redirects, with credentials dropped across hosts  | yes                            |
 | HTTP/2, with HPACK and flow control               | yes                            |
 | Connections kept, HTTP/2 multiplexed              | yes, per session               |
-| Browser impersonation, TLS and HTTP/2             | 37 browsers, see below         |
+| Browser impersonation, TLS and HTTP/2             | 39 browsers, see below         |
 | Cookies, with domain and path scoping             | yes                            |
 | Retries, idempotent methods only by default       | yes                            |
 | Basic, Bearer and Digest authentication           | yes, Digest in MD5 and SHA-256 |
@@ -506,7 +506,7 @@ nothing else on the web omits it. Ask for a browser instead:
 const session = new Session({ impersonate: 'chrome' });
 ```
 
-Thirty-seven browsers are built in, under the names impers gives them, and
+Thirty-nine browsers are built in, under the names impers gives them, and
 both fingerprints a server reads match the real browser for each — JA4 from
 the handshake, and the Akamai string from the HTTP/2 settings:
 
@@ -514,13 +514,14 @@ the handshake, and the Akamai string from the HTTP/2 settings:
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Chrome         | `chrome99` `chrome100` `chrome101` `chrome104` `chrome107` `chrome110` `chrome116` `chrome119` `chrome120` `chrome123` `chrome124` `chrome131` `chrome133a` `chrome136` `chrome142` `chrome150` `chrome155` |
 | Chrome Android | `chrome99_android` `chrome131_android`                                                                                                                                                                      |
-| Edge           | `edge99` `edge101`                                                                                                                                                                                          |
+| Edge           | `edge99` `edge101` `edge155`                                                                                                                                                                                |
+| Brave          | `brave154`                                                                                                                                                                                                  |
 | Firefox        | `firefox133` `firefox135` `firefox144` `firefox158`                                                                                                                                                         |
 | Safari         | `safari153` `safari155` `safari170` `safari180` `safari184` `safari260` `safari2601`                                                                                                                        |
 | Safari iOS     | `safari172_ios` `safari180_ios` `safari184_ios` `safari260_ios`                                                                                                                                             |
 | Tor            | `tor145`                                                                                                                                                                                                    |
 
-`chrome`, `chrome_android`, `edge`, `firefox`, `safari`, `safari_ios` and
+`brave`, `chrome`, `chrome_android`, `edge`, `firefox`, `safari`, `safari_ios` and
 `tor` name the newest of each. The defaults, for instance:
 
 | profile   | JA4                                    | Akamai                                                 |
@@ -634,7 +635,11 @@ Windows the day after, in a visible window, since headless Chrome names
 itself `HeadlessChrome`; `firefox` and `chrome` name them. Chrome 155 brought
 three things no capture had: a GREASE value leading its signature
 algorithms, the ML-DSA ones after it, and trust anchor IDs (0xca34), whose
-body goes out as recorded.
+body goes out as recorded. `edge155` and `brave154` were recorded the same
+way: both lead with GREASE and offer ML-DSA but send no trust anchor IDs, so
+their JA4 is still Chrome 150's; Edge names itself in `sec-ch-ua` and its
+user-agent, and Brave sends Chrome's user-agent with `sec-gpc: 1` straight
+after `accept`. `edge` and `brave` name them.
 
 It was worth doing. Against the sites behind bot managers (`/cases?only=waf`),
 `firefox` — then 144 — passed 16 of 22. Swapping one layer at a time on the

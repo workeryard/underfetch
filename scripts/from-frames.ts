@@ -146,7 +146,7 @@ const capture: Omit<Capture, 'expected'> = {
   keyShares: keyShares.filter((g) => g !== 0x6399),
   extensions,
   shuffled:
-    (browser === 'chrome' || browser === 'edge') &&
+    (browser === 'chrome' || browser === 'edge' || browser === 'brave') &&
     Number.parseInt(source.split('_')[1]!, 10) >= 110,
   alpn,
   ...(alps.length > 0 ? { alps } : {}),

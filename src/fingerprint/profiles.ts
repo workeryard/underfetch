@@ -159,14 +159,15 @@ const targets = Object.fromEntries(
 
 /**
  * Every browser, by the names impers gives them, plus the short names it
- * points at the newest of each. Chrome's newest is 155 and Firefox's 158,
- * both recorded here (captures/), past any capture curl-impersonate has.
+ * points at the newest of each. Chrome 155, Edge 155, Brave 154 and Firefox
+ * 158 were recorded here (captures/), past any capture curl-impersonate has.
  */
 export const profiles = {
   ...targets,
   chrome: targets.chrome155,
   chrome_android: targets.chrome131_android,
-  edge: targets.edge101,
+  brave: targets.brave154,
+  edge: targets.edge155,
   firefox: targets.firefox158,
   safari: targets.safari2601,
   safari_ios: targets.safari260_ios,
