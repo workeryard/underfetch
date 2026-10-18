@@ -11,7 +11,7 @@
 import { profiles, type ProfileName } from '../src/fingerprint/profiles';
 import { withFingerprints } from '../src/fingerprint/custom';
 import { akamai } from '../src/fingerprint/verify';
-import { Session, type Proxy, type Resource } from '../src/workers/index';
+import { Session, timingOf, type Proxy, type Resource } from '../src/workers/index';
 import { reuse } from './reuse';
 import { cases } from './cases/http';
 import { plainHttpCases, siteCases, tlsCases, websocketCases } from './cases/extra';
@@ -305,6 +305,7 @@ export default {
       return Response.json({
         status: response.status,
         elapsedMs: Date.now() - started,
+        timing: timingOf(response),
         headers: Object.fromEntries(response.headers),
         // `max` to read more of a page than a spot check needs.
         body: body.slice(0, Math.min(Number(query.get('max') ?? 700), 2_000_000)),

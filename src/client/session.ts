@@ -305,6 +305,7 @@ export class Session {
         {
           allowRedirects: init?.allowRedirects ?? this.#defaults.allowRedirects,
           maxRedirects: init?.maxRedirects ?? this.#defaults.maxRedirects,
+          onRedirect: init?.onRedirect ?? this.#defaults.onRedirect,
         },
         !streamed,
       );

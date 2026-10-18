@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Session } from '../../src/client/session';
+import { timingOf } from '../../src/client/timing';
 import type { ByteSocket, Dial } from '../../src/net/socket';
 import type { TlsSession } from '../../src/tls/tunnel';
 
@@ -90,6 +91,18 @@ describe('Session', () => {
 
     expect(wire.dialled).toEqual(['203.0.113.7:1080', '203.0.113.7:1080']);
     expect(session.proxy).toBe(PROXY);
+  });
+
+  it('times the proxy handshake apart from dialling and TLS', async () => {
+    const wire = net(true);
+    const response = await new Session({ ...options(wire), proxy: PROXY }).fetch(
+      'https://a.example/',
+    );
+    const timing = timingOf(response)!;
+    expect(timing.reused).toBe(false);
+    for (const phase of [timing.connect, timing.proxy, timing.tls]) {
+      expect(phase).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it('lets one request opt out of the session proxy', async () => {

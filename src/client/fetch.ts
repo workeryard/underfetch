@@ -17,6 +17,7 @@ import { missingIssuer, unverifiableSignature } from '../tls/errors';
 import { tlsTunnel, type TlsFactory, type TlsOptions, type TlsSession } from '../tls/tunnel';
 import { deadline, until } from './abort';
 import { ConnectionPool, poolKey } from './pool';
+import type { Phases } from './timing';
 
 export interface FetchOverOptions {
   /** Opens a plain TCP connection; the runtime supplies this. */
@@ -111,12 +112,13 @@ export async function fetchOver(request: Request, options: FetchOverOptions): Pr
     throw new TypeError(`cannot proxy ${url.protocol} requests`);
   }
   const limit = deadline(options.signal ?? request.signal, options.timeoutMs);
+  const start = Date.now();
   // Only while the request can be sent again: a handshake fails before any
   // body is read, but a caller's stream is not ours to assume unread.
   return remedied(
     options,
     limit.signal,
-    (tls) => attempt(request, url, options, tls, limit.signal),
+    (tls) => attempt(request, url, options, tls, limit.signal, start),
     () => !request.bodyUsed,
   );
 }
@@ -198,6 +200,8 @@ export interface Carrier {
   socket: ByteSocket;
   /** Stops `signal` from closing the socket, for a connection that outlives it. */
   detach: () => void;
+  /** How long dialling, the proxy and TLS took. */
+  phases: Phases;
 }
 
 /**
@@ -222,7 +226,16 @@ export async function openCarrier(
   // Connecting has a deadline of its own, spent once the connection is up;
   // `signal` goes on holding the socket for as long as it is used.
   const connecting = deadline(signal, connectTimeoutMs, 'connecting').signal;
+  // Each phase is the time since the one before it ended.
+  let mark = Date.now();
+  const lap = () => {
+    const now = Date.now();
+    const spent = now - mark;
+    mark = now;
+    return spent;
+  };
   const socket = await until(connecting, dial(entry.hostname, entry.port));
+  const phases: Phases = { connect: lap() };
   const stop = () => void socket.close().catch(() => undefined);
   signal.addEventListener('abort', stop, { once: true });
   connecting.addEventListener('abort', stop, { once: true });
@@ -230,16 +243,24 @@ export async function openCarrier(
 
   try {
     const setup = async (): Promise<Carrier> => {
-      const tunnel = proxy
-        ? await tunnelThrough(await toProxy(socket, proxy, proxyTls), proxy, url.hostname, port)
-        : socket;
+      let tunnel: ByteSocket = socket;
+      if (proxy) {
+        tunnel = await tunnelThrough(
+          await toProxy(socket, proxy, proxyTls),
+          proxy,
+          url.hostname,
+          port,
+        );
+        phases.proxy = lap();
+      }
       // Plain http needs no session; https gets one that checks the
       // certificate against the target's name, which the proxy never sees.
       if (url.protocol === 'http:' || url.protocol === 'ws:') {
-        return { ...tunnel, protocol: undefined, socket, detach };
+        return { ...tunnel, protocol: undefined, socket, detach, phases };
       }
       const carrier = await tlsTunnel(tunnel, tls(url.hostname, alpn));
-      return { ...carrier, socket, detach };
+      phases.tls = lap();
+      return { ...carrier, socket, detach, phases };
     };
     return await until(connecting, setup());
   } catch (error) {
@@ -272,6 +293,7 @@ function attempt(
   options: FetchOverOptions,
   tls: TlsFactory,
   signal: AbortSignal,
+  start: number,
 ): Promise<Response> {
   const { http2, streamBody, decoders, headerOrder } = options;
   const pool = options.pool ?? new ConnectionPool({ keepAlive: false });
@@ -280,6 +302,6 @@ function attempt(
     poolKey(url, port, options.proxy),
     () => openCarrier(url, options, tls, signal),
     request,
-    { http2, streamBody, decoders, headerOrder, signal },
+    { http2, streamBody, decoders, headerOrder, signal, start },
   );
 }

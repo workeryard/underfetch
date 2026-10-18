@@ -19,6 +19,7 @@ import { Http1Connection } from '../http/http1';
 import type { Proxy } from '../net/socket';
 import { until } from './abort';
 import type { Carrier } from './fetch';
+import { timed, type Phases } from './timing';
 
 export interface PoolOptions {
   /**
@@ -43,6 +44,8 @@ export interface ExchangeOptions {
   headerOrder?: readonly string[] | undefined;
   /** Gives up on this request; a shared connection outlives it. */
   signal: AbortSignal;
+  /** When the request began, which its timing counts from. */
+  start: number;
 }
 
 interface Idle {
@@ -51,9 +54,11 @@ interface Idle {
   since: number;
 }
 
-type Opened =
+/** A connection to send on, and what opening it cost when it was just opened. */
+type Opened = (
   | { kind: 'h2'; connection: Http2Connection }
-  | { kind: 'h1'; connection: Http1Connection; carrier: Carrier; key: string };
+  | { kind: 'h1'; connection: Http1Connection; carrier: Carrier; key: string }
+) & { phases?: Phases | undefined };
 
 /** Where a connection goes, and through what. */
 export function poolKey(url: URL, port: number, proxy: Proxy | undefined): string {
@@ -71,20 +76,25 @@ const unprocessed = (error: unknown) =>
 /** Fails a body's read with why the request was given up, not with what that broke. */
 function explained(body: ReadableStream<Uint8Array>, signal: AbortSignal) {
   const reader = body.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { value, done } = await reader.read();
-        if (done) controller.close();
-        else controller.enqueue(value);
-      } catch (error) {
-        // The deadline closes the socket to stop the read, and the read then
-        // fails as a closed socket; the caller should hear why it was closed.
-        throw signal.aborted ? (signal.reason as Error) : error;
-      }
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) controller.close();
+          else controller.enqueue(value);
+        } catch (error) {
+          // The deadline closes the socket to stop the read, and the read then
+          // fails as a closed socket; the caller should hear why it was closed.
+          throw signal.aborted ? (signal.reason as Error) : error;
+        }
+      },
+      cancel: (reason) => reader.cancel(reason),
     },
-    cancel: (reason) => reader.cancel(reason),
-  });
+    // Read only when asked: a wrapper reading ahead would drain the socket
+    // before the caller wants the bytes, and undo HTTP/2's flow control.
+    { highWaterMark: 0 },
+  );
 }
 
 export class ConnectionPool {
@@ -188,7 +198,13 @@ export class ConnectionPool {
       // Plain http has no ALPN, and is HTTP/1.1 all the same.
       this.#protocols.set(key, carrier.protocol ?? 'http/1.1');
       if (carrier.protocol !== 'h2') {
-        return { kind: 'h1', connection: new Http1Connection(carrier), carrier, key };
+        return {
+          kind: 'h1',
+          connection: new Http1Connection(carrier),
+          carrier,
+          key,
+          phases: carrier.phases,
+        };
       }
       const connection: Http2Connection = new Http2Connection(carrier, profile, {
         close: () => void carrier.socket.close().catch(() => undefined),
@@ -197,7 +213,7 @@ export class ConnectionPool {
         },
       });
       if (this.#keepAlive) this.#h2.set(key, [...(this.#h2.get(key) ?? []), connection]);
-      return { kind: 'h2', connection };
+      return { kind: 'h2', connection, phases: carrier.phases };
     })();
     this.#opening.set(key, opening);
     try {
@@ -208,6 +224,16 @@ export class ConnectionPool {
   }
 
   async #on(opened: Opened, request: Request, options: ExchangeOptions): Promise<Response> {
+    const response = await this.#send(opened, request, options);
+    return timed(response, {
+      start: options.start,
+      reused: opened.phases === undefined,
+      ...opened.phases,
+      firstByte: Date.now() - options.start,
+    });
+  }
+
+  async #send(opened: Opened, request: Request, options: ExchangeOptions): Promise<Response> {
     const { signal, streamBody, decoders, headerOrder } = options;
     if (opened.kind === 'h2') {
       return opened.connection.request(request, {

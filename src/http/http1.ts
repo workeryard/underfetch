@@ -218,26 +218,29 @@ function reporting(
   ended: (whole: boolean) => void,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { value, done } = await reader.read();
-        if (done) {
-          ended(true);
-          controller.close();
-          return;
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) {
+            ended(true);
+            controller.close();
+            return;
+          }
+          controller.enqueue(value);
+        } catch (error) {
+          ended(false);
+          throw error;
         }
-        controller.enqueue(value);
-      } catch (error) {
+      },
+      cancel(reason) {
         ended(false);
-        throw error;
-      }
+        return reader.cancel(reason);
+      },
     },
-    cancel(reason) {
-      ended(false);
-      return reader.cancel(reason);
-    },
-  });
+    { highWaterMark: 0 },
+  );
 }
 
 /**

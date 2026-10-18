@@ -184,6 +184,7 @@ await request('PATCH', url, { json: { name: 'new' } });
 | `timeoutMs`                      | gives up, headers and body together                                          |
 | `connectTimeoutMs`               | gives up on dialling, the proxy and TLS alone                                |
 | `allowRedirects`, `maxRedirects` | default `true` and `20`                                                      |
+| `onRedirect`                     | asked before each hop; `false` hands back the 3xx                            |
 | `retry`                          | a count, `RetryOptions`, or `false`                                          |
 | `impersonate`                    | whose ClientHello to send                                                    |
 
@@ -202,6 +203,22 @@ handshake and TLS — so a dead proxy fails in a second or two and a retry
 still has time, where `timeoutMs` alone would wait out the whole budget on it.
 
 A redirect that changes host drops `authorization` and `cookie`.
+`onRedirect` is asked before each hop is followed — while nothing has gone
+to where it points — and can stop the chain there:
+
+```ts
+await session.get(url, {
+  // Stay on this site; `false` hands back the 3xx, its body unread.
+  onRedirect: (hop) => hop.to.origin === new URL(url).origin,
+});
+```
+
+It sees the hop's number, the 3xx and a copy of its headers (the only place
+to read a cookie it set), `from` and `to` as URLs, the method the next
+request will use, and whether the hop crosses origins or drops to http.
+Throwing fails the request with what was thrown. It cannot change where the
+hop goes, which would get round the credentials dropped on the way, and it
+is not asked about a hop past `maxRedirects`, which fails as before.
 
 Digest answers the server's challenge, as curl does: the request goes once
 without credentials, and again with them after the 401 — so it costs a round
@@ -407,6 +424,32 @@ warning about a promise resolved from a different request context. Nothing
 waits on it. Make a session per request, or accept the warning.
 
 `keepAlive: false` closes each connection with its answer.
+
+### Timing
+
+```ts
+import { timingOf } from 'underfetch/workers';
+
+const response = await session.get(url);
+await response.text();
+timingOf(response); // { reused, connect, proxy, tls, firstByte, total, start }
+```
+
+Each phase is read off the clock around the thing it names, in
+milliseconds: `connect` is opening the TCP connection (to the proxy, when
+there is one), `proxy` its handshake, `tls` the target's, `firstByte` from
+the start until the status and headers arrived, and `total` until the body
+was read to its end — unset until it has been. A phase that did not happen
+is left out rather than given a zero: a request on a kept connection is
+`reused` and has no `connect` or `tls`, and plain http has no `tls`. It is
+the one hop and the one try that answered, not the whole redirect chain.
+
+Two things are not there. Name resolution is inside `connect`, since a
+Worker's `connect()` does both and cannot be split. And in a Worker the
+clock moves only on I/O, so the CPU a phase spends — some 6 ms of
+cryptography in a handshake — is not counted; the round trips, nearly all
+of it, are. On httpbin.org, some 250 ms away, a first request read
+`connect` 281, `tls` 498 (TLS 1.2, two round trips) and `firstByte` 1029.
 
 ### Without the Workers adapter
 
