@@ -18,6 +18,29 @@ const session = new Session({
 const response = await session.fetch('https://api.example.com/v1/models');
 ```
 
+## Who it is for
+
+- Workers whose requests must leave from somewhere other than Cloudflare's
+  addresses: through a SOCKS or HTTP proxy, for an allowlisted egress IP, a
+  region an API serves, or a limit counted per address.
+- Workers that talk to services on a private CA, or that must present a
+  client certificate.
+- Requests that should look like a browser end to end — handshake, HTTP/2
+  and headers in the browser's order — to a service that refuses anything
+  else, or to bot defences you run or are allowed to test.
+- Anyone who needs what `fetch()` will not give: no `cf-*` headers, header
+  order, a socket of your own, connections kept per session.
+
+## What it is not for
+
+- Reaching a site behind Cloudflare without a proxy. The platform blocks the
+  socket; see below.
+- Getting past behavioural bot managers. Nothing here runs JavaScript or
+  solves a challenge; Kasada, for one, still says no.
+- Ignoring the sites you reach. Their terms, robots.txt and rate limits are
+  still yours to honour; a browser's handshake does not change that.
+- HTTP/3, or anything else over UDP, which a Worker does not have.
+
 ## Why it exists
 
 A Worker's `fetch()` cannot be pointed at a proxy, cannot ride a socket you
