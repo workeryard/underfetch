@@ -926,6 +926,10 @@ make dev-stop
 make consumer-check              # the packed package, typechecked as a Worker project would
 ```
 
+A release is a version tag: `.github/workflows/release.yml` checks the tagged
+commit, stages it on npm with provenance, and opens the GitHub release; it goes
+live once a maintainer approves it on npmjs.com.
+
 Why something was taken from another client, or left out, is in
 [docs/decisions.md](docs/decisions.md).
 

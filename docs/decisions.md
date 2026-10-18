@@ -7,6 +7,16 @@ platform's documentation. Newest first within each section.
 
 ## Taken
 
+**Releases through a workflow, staged** (2026-10-19). Pushing a version tag
+runs `.github/workflows/release.yml`, the repository's only workflow: it
+checks the tagged commit again (`make check`, `make consumer-check`), stages
+it on npm through trusted publishing with provenance, and opens the GitHub
+release. No npm token exists anywhere; npm trusts that workflow's OIDC
+identity, and only to stage. The version goes live when a maintainer
+approves it on npmjs.com with their passkey, so neither a compromised
+workflow nor a compromised GitHub account can publish alone. Live checks
+against real servers stay local, run before the tag.
+
 **Edge 155 and Brave 154, recorded** (2026-10-19), the same way as Chrome 155. `edge` named Edge 101 until then. Neither sends Chrome 155's trust
 anchor IDs, so their JA4 is Chrome 150's; Brave puts `sec-gpc: 1` straight
 after `accept` on every kind of request, which the Chromium header tables
