@@ -19,7 +19,8 @@ use rustls::{
     CipherSuite, ClientConfig, ClientConnection, DigitallySignedStruct, DistinguishedName, Error,
     NamedGroup, RootCertStore, SignatureScheme,
 };
-use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls_pki_types::pem::PemObject;
+use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Cursor, Read, Write};
@@ -47,6 +48,35 @@ fn certificates_from(blob: &[u8]) -> Vec<CertificateDer<'static>> {
     out
 }
 
+/// Certificates given by the caller, as `(length u32, bytes)` records each
+/// holding one DER certificate or any number in PEM.
+fn certificates_given(blob: &[u8]) -> Result<Vec<CertificateDer<'static>>, JsValue> {
+    let mut out = Vec::new();
+    for record in certificates_from(blob) {
+        // An empty string is no certificate, not a broken one.
+        if record.is_empty() {
+            continue;
+        }
+        if record.starts_with(b"-----BEGIN") {
+            for cert in CertificateDer::pem_slice_iter(&record) {
+                out.push(cert.map_err(|error| fail("could not read a PEM certificate", error))?);
+            }
+        } else {
+            out.push(record);
+        }
+    }
+    Ok(out)
+}
+
+/// A private key in PEM, or in DER as PKCS#8, PKCS#1 or SEC1.
+fn private_key(blob: &[u8]) -> Result<PrivateKeyDer<'static>, JsValue> {
+    if blob.starts_with(b"-----BEGIN") {
+        return PrivateKeyDer::from_pem_slice(blob)
+            .map_err(|error| fail("could not read the PEM private key", error));
+    }
+    PrivateKeyDer::try_from(blob.to_vec()).map_err(|error| fail("could not read the private key", error))
+}
+
 /// The web PKI's own verifier, given two things a browser has and it lacks:
 /// intermediates fetched from elsewhere, and a record of what the server sent.
 ///
@@ -63,10 +93,15 @@ fn certificates_from(blob: &[u8]) -> Vec<CertificateDer<'static>> {
 /// before each batch of bytes it processes: JavaScript is single-threaded, and
 /// verification happens inside that one synchronous call, so no other
 /// connection's handshake can run in between.
+///
+/// It trusts the web PKI's roots, or only the ones a caller gives instead;
+/// and told not to verify, it accepts any certificate, though the handshake
+/// must still be signed by the key of the one presented, as `curl -k` has it.
 #[derive(Debug)]
 struct Completing {
     inner: Arc<WebPkiServerVerifier>,
     current: Mutex<Context>,
+    verify: bool,
 }
 
 /// One connection's share of the verifier: the intermediates fetched for it,
@@ -78,16 +113,25 @@ struct Context {
 }
 
 impl Completing {
-    fn new() -> Result<Completing, JsValue> {
+    fn new(ca: &[CertificateDer<'static>], verify: bool) -> Result<Completing, JsValue> {
         let mut roots = RootCertStore::empty();
-        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        // Not verifying still needs a root store to build the signature
+        // checks on, and an empty one is refused.
+        if ca.is_empty() {
+            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        }
+        for cert in ca {
+            roots
+                .add(cert.clone())
+                .map_err(|error| fail("a CA certificate could not be trusted", error))?;
+        }
         let inner = WebPkiServerVerifier::builder_with_provider(
             Arc::new(roots),
             Arc::new(rustls::crypto::ring::default_provider()),
         )
         .build()
         .map_err(|error| fail("could not build the certificate verifier", error))?;
-        Ok(Completing { inner, current: Mutex::new(Context::default()) })
+        Ok(Completing { inner, current: Mutex::new(Context::default()), verify })
     }
 
     fn enter(&self, context: &Context) {
@@ -112,6 +156,9 @@ impl ServerCertVerifier for Completing {
                 .chain(intermediates)
                 .map(|cert| cert.to_vec())
                 .collect();
+        }
+        if !self.verify {
+            return Ok(ServerCertVerified::assertion());
         }
         let mut pool: Vec<CertificateDer<'_>> = intermediates.to_vec();
         pool.extend(context.extra.iter().cloned());
@@ -182,8 +229,26 @@ thread_local! {
 
 #[wasm_bindgen]
 impl TicketStore {
+    /// A store for one session's connections, which also says whom they
+    /// trust and who they are — rustls resumes a ticket only under the
+    /// verifier and client certificate that earned it. `ca` replaces the web
+    /// PKI's roots, as `(length u32, DER or PEM)` records; `verify: false`
+    /// accepts any server certificate; `client_chain` and `client_key` are
+    /// presented when a server asks for a certificate.
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<TicketStore, JsValue> {
+    pub fn new(
+        ca: Option<Vec<u8>>,
+        verify: Option<bool>,
+        client_chain: Option<Vec<u8>>,
+        client_key: Option<Vec<u8>>,
+    ) -> Result<TicketStore, JsValue> {
+        let ca = certificates_given(&ca.unwrap_or_default())?;
+        let creds: Arc<dyn ResolvesClientCert> = match (client_chain, client_key) {
+            (Some(chain), Some(key)) => Arc::new(ClientCert::new(&chain, &key)?),
+            (None, None) => Arc::new(NoClientCert),
+            _ => return Err(JsValue::from_str("a client certificate needs its key, and a key its certificate")),
+        };
+        let verifier = Arc::new(Completing::new(&ca, verify.unwrap_or(true))?);
         let id = NEXT_ID.with(|next| {
             let id = next.get();
             next.set(id.wrapping_add(1).max(1));
@@ -192,8 +257,8 @@ impl TicketStore {
         let shared = Shared {
             // As many hosts as rustls' own default cache holds.
             tickets: Arc::new(TicketsOnly::default()),
-            verifier: Arc::new(Completing::new()?),
-            creds: Arc::new(NoClientCert),
+            verifier,
+            creds,
         };
         STORES.with(|stores| stores.borrow_mut().insert(id, shared));
         Ok(TicketStore { id })
@@ -304,6 +369,38 @@ impl ResolvesClientCert for NoClientCert {
 
     fn has_certs(&self) -> bool {
         false
+    }
+}
+
+/// The certificate a session presents when a server asks for one, for mutual
+/// TLS. Its key signs with whatever scheme ring supports for it: RSA, ECDSA
+/// on P-256 or P-384, or Ed25519.
+#[derive(Debug)]
+struct ClientCert(Arc<CertifiedKey>);
+
+impl ClientCert {
+    fn new(chain: &[u8], key: &[u8]) -> Result<ClientCert, JsValue> {
+        let chain = certificates_given(chain)?;
+        if chain.is_empty() {
+            return Err(JsValue::from_str("the client certificate chain is empty"));
+        }
+        let key = rustls::crypto::ring::default_provider()
+            .key_provider
+            .load_private_key(private_key(key)?)
+            .map_err(|error| fail("the client key cannot sign", error))?;
+        Ok(ClientCert(Arc::new(CertifiedKey::new(chain, key))))
+    }
+}
+
+impl ResolvesClientCert for ClientCert {
+    fn resolve(&self, _: &[&[u8]], schemes: &[SignatureScheme]) -> Option<Arc<CertifiedKey>> {
+        // Only when the key can sign with a scheme the server offered.
+        self.0.key.choose_scheme(schemes)?;
+        Some(self.0.clone())
+    }
+
+    fn has_certs(&self) -> bool {
+        true
     }
 }
 
@@ -421,11 +518,12 @@ impl TlsClient {
         verifiable_signatures: Option<bool>,
         tickets: Option<u32>,
         key_shares: Option<Vec<u16>>,
+        resume: Option<bool>,
     ) -> Result<TlsClient, JsValue> {
         let shared = tickets.and_then(|id| STORES.with(|stores| stores.borrow().get(&id).cloned()));
         let verifier = match &shared {
             Some(shared) => shared.verifier.clone(),
-            None => Arc::new(Completing::new()?),
+            None => Arc::new(Completing::new(&[], true)?),
         };
         // The schemes this verifier can check. A browser offers more — SHA-1,
         // and ECDSA with SHA-512 — and an old TLS 1.2 server that picks one
@@ -464,9 +562,12 @@ impl TlsClient {
             .with_custom_certificate_verifier(verifier.clone())
             .with_no_client_auth();
         // Without a store each connection starts with an empty cache of its
-        // own, which is to say it never resumes.
+        // own, which is to say it never resumes; nor does one told not to,
+        // which still takes the store's trust and client certificate.
         if let Some(shared) = shared {
-            config.resumption = Resumption::store(shared.tickets);
+            if resume.unwrap_or(true) {
+                config.resumption = Resumption::store(shared.tickets);
+            }
             config.client_auth_cert_resolver = shared.creds;
         }
         if let Some(list) = alpn {

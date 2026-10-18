@@ -78,10 +78,28 @@ export class TicketStore {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
     }
-    constructor() {
+    /**
+     * A store for one session's connections, which also says whom they
+     * trust and who they are — rustls resumes a ticket only under the
+     * verifier and client certificate that earned it. `ca` replaces the web
+     * PKI's roots, as `(length u32, DER or PEM)` records; `verify: false`
+     * accepts any server certificate; `client_chain` and `client_key` are
+     * presented when a server asks for a certificate.
+     * @param {Uint8Array | null} [ca]
+     * @param {boolean | null} [verify]
+     * @param {Uint8Array | null} [client_chain]
+     * @param {Uint8Array | null} [client_key]
+     */
+    constructor(ca, verify, client_chain, client_key) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.ticketstore_new(retptr);
+            var ptr0 = isLikeNone(ca) ? 0 : passArray8ToWasm0(ca, wasm.__wbindgen_export3);
+            var len0 = WASM_VECTOR_LEN;
+            var ptr1 = isLikeNone(client_chain) ? 0 : passArray8ToWasm0(client_chain, wasm.__wbindgen_export3);
+            var len1 = WASM_VECTOR_LEN;
+            var ptr2 = isLikeNone(client_key) ? 0 : passArray8ToWasm0(client_key, wasm.__wbindgen_export3);
+            var len2 = WASM_VECTOR_LEN;
+            wasm.ticketstore_new(retptr, ptr0, len0, isLikeNone(verify) ? 0xFFFFFF : verify ? 1 : 0, ptr1, len1, ptr2, len2);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -153,8 +171,9 @@ export class TlsClient {
      * @param {boolean | null} [verifiable_signatures]
      * @param {number | null} [tickets]
      * @param {Uint16Array | null} [key_shares]
+     * @param {boolean | null} [resume]
      */
-    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets, key_shares) {
+    constructor(hostname, alpn, ciphers, signature_schemes, extensions, grease_named_group, extension_order, named_groups, intermediates, verifiable_signatures, tickets, key_shares, resume) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(hostname, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
@@ -175,7 +194,7 @@ export class TlsClient {
             var len7 = WASM_VECTOR_LEN;
             var ptr8 = isLikeNone(key_shares) ? 0 : passArray16ToWasm0(key_shares, wasm.__wbindgen_export3);
             var len8 = WASM_VECTOR_LEN;
-            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0, ptr8, len8);
+            wasm.tlsclient_new(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, isLikeNone(grease_named_group) ? 0xFFFFFF : grease_named_group ? 1 : 0, ptr5, len5, ptr6, len6, ptr7, len7, isLikeNone(verifiable_signatures) ? 0xFFFFFF : verifiable_signatures ? 1 : 0, isLikeNone(tickets) ? Number.MAX_SAFE_INTEGER : (tickets) >>> 0, ptr8, len8, isLikeNone(resume) ? 0xFFFFFF : resume ? 1 : 0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);

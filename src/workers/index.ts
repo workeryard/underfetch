@@ -20,6 +20,7 @@ import { verifyProfile, type Verdict } from '../fingerprint/verify';
 import { zlibDecoders, type ZlibModule } from '../http/decompress';
 import { zlibInflater, type InflateModule } from '../http/permessage-deflate';
 import { impersonating, ticketStore } from '../tls/wasm';
+import type { Certificates, TrustOptions } from '../tls/trust';
 import type { TicketStore } from '../../rust-tls/pkg/underfetch_tls';
 import { CookieJar } from '../client/cookies';
 import { FingerprintError, withFingerprints, type Fingerprints } from '../fingerprint/custom';
@@ -139,6 +140,16 @@ export interface WorkerSessionDefaults extends SessionDefaults {
    * are not covered.
    */
   onCloudflare?: 'error' | 'fetch' | undefined;
+  /**
+   * Check the server's certificate. Default: true. `false` takes any
+   * certificate, as `curl -k` does: for a service under test only. It also
+   * applies to an HTTPS proxy's certificate.
+   */
+  verify?: boolean | undefined;
+  /** CAs to trust instead of the web PKI's roots, PEM or DER; see `TrustOptions`. */
+  ca?: Certificates | undefined;
+  /** A certificate and key to present when a server asks — mutual TLS. */
+  clientCert?: TrustOptions['clientCert'];
 }
 
 /**
@@ -211,16 +222,20 @@ export class Session extends PlainSession {
     shuffle,
     tlsResumption = true,
     onCloudflare = 'error',
+    verify,
+    ca,
+    clientCert,
     ...defaults
   }: WorkerSessionDefaults = {}) {
     const input = inputOf({ ja3, akamai, shuffle });
     const as = profileFor(impersonate, input);
-    const tickets = tlsResumption ? ticketStore() : undefined;
+    const trust = { verify, ca, clientCert };
+    const tickets = tlsResumption ? ticketStore(trust) : undefined;
     super({
       dial,
       decoders,
       inflater,
-      tls: impersonating(as, tickets ?? false),
+      tls: tickets ? impersonating(as, tickets) : impersonating(as, false, trust),
       // A browser's headers travel with its handshake. The session's own win
       // over the profile's, and a request's win over both.
       impersonate: as,
@@ -308,18 +323,28 @@ export function request(
   input: string | URL,
   init?: WorkerRequestInit,
 ): Promise<Response> {
-  const { impersonate, ja3, akamai, shuffle, ...rest } = init ?? {};
+  const { impersonate, ja3, akamai, shuffle, verify, ca, clientCert, ...rest } = init ?? {};
   // Nothing else will ride its connection, so it closes with the answer.
-  return new Session({ impersonate, ja3, akamai, shuffle, keepAlive: false }).fetch(input, {
-    ...rest,
-    method,
+  const session = new Session({
+    impersonate,
+    ja3,
+    akamai,
+    shuffle,
+    verify,
+    ca,
+    clientCert,
+    keepAlive: false,
   });
+  return session.fetch(input, { ...rest, method });
 }
 
 export interface WorkerRequestInit
   extends
     SessionRequestInit,
-    Pick<WorkerSessionDefaults, 'impersonate' | 'ja3' | 'akamai' | 'shuffle'> {}
+    Pick<
+      WorkerSessionDefaults,
+      'impersonate' | 'ja3' | 'akamai' | 'shuffle' | 'verify' | 'ca' | 'clientCert'
+    > {}
 
 export const get = (url: string | URL, init?: WorkerRequestInit) => request('GET', url, init);
 export const post = (url: string | URL, init?: WorkerRequestInit) => request('POST', url, init);
@@ -371,6 +396,7 @@ export { impersonating, wasmTls } from '../tls/wasm';
 export { CookieJar } from '../client/cookies';
 export { SessionStateError } from './state';
 export type { SessionState } from './state';
+export type { Certificates, TrustOptions } from '../tls/trust';
 export type { Cookie } from '../client/cookies';
 export type { RetryOptions } from '../client/retry';
 export { GREASE, profiles } from '../fingerprint/profiles';

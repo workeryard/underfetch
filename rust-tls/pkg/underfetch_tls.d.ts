@@ -33,7 +33,15 @@ export class TicketStore {
      * another layout are refused whole.
      */
     import(blob: Uint8Array): number;
-    constructor();
+    /**
+     * A store for one session's connections, which also says whom they
+     * trust and who they are — rustls resumes a ticket only under the
+     * verifier and client certificate that earned it. `ca` replaces the web
+     * PKI's roots, as `(length u32, DER or PEM)` records; `verify: false`
+     * accepts any server certificate; `client_chain` and `client_key` are
+     * presented when a server asks for a certificate.
+     */
+    constructor(ca?: Uint8Array | null, verify?: boolean | null, client_chain?: Uint8Array | null, client_key?: Uint8Array | null);
     readonly id: number;
 }
 
@@ -60,7 +68,7 @@ export class TlsClient {
      * out and rustls makes its own choices, which are safe and instantly
      * recognisable as rustls.
      */
-    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null, tickets?: number | null, key_shares?: Uint16Array | null);
+    constructor(hostname: string, alpn?: string | null, ciphers?: Uint16Array | null, signature_schemes?: Uint16Array | null, extensions?: Uint8Array | null, grease_named_group?: boolean | null, extension_order?: Uint16Array | null, named_groups?: Uint16Array | null, intermediates?: Uint8Array | null, verifiable_signatures?: boolean | null, tickets?: number | null, key_shares?: Uint16Array | null, resume?: boolean | null);
     /**
      * Ciphertext waiting to go out on the socket. Empty when there is none.
      */
@@ -106,11 +114,11 @@ export interface InitOutput {
     readonly ticketstore_export: (a: number, b: number) => void;
     readonly ticketstore_id: (a: number) => number;
     readonly ticketstore_import: (a: number, b: number, c: number, d: number) => void;
-    readonly ticketstore_new: (a: number) => void;
+    readonly ticketstore_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly tlsclient_close: (a: number) => void;
     readonly tlsclient_handshaking: (a: number) => number;
     readonly tlsclient_keyExchangeGroup: (a: number) => number;
-    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number) => void;
+    readonly tlsclient_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number) => void;
     readonly tlsclient_outgoing: (a: number, b: number) => void;
     readonly tlsclient_plaintext: (a: number, b: number) => void;
     readonly tlsclient_presentedChain: (a: number, b: number) => void;

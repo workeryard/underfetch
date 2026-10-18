@@ -5,6 +5,7 @@
 
 import { Session, websocket, type WorkerSessionDefaults } from '../../src/workers/index';
 import { run, short, websocketKey, type Check, type Outcome } from './probe';
+import * as badssl from '../fixtures/badssl-client';
 
 /** HTTP/1.1 without TLS, which a profile's ALPN never reaches. */
 export async function plainHttpCases(bin: string, profile: WorkerSessionDefaults['impersonate']) {
@@ -71,6 +72,36 @@ export async function tlsCases(profile: WorkerSessionDefaults['impersonate']) {
         const r = await s().get(url);
         await r.text();
         return [r.status === 200, `status ${r.status}`];
+      }),
+    );
+  }
+  // What a session trusts and presents, set by the caller.
+  const loose = () =>
+    new Session({ timeoutMs: 15_000, retry: false, impersonate: profile, verify: false });
+  for (const host of ['self-signed.badssl.com', 'wrong.host.badssl.com', 'expired.badssl.com']) {
+    out.push(
+      await run('tls', `${host} taken with verify: false`, async () => {
+        const r = await loose().get(`https://${host}/`);
+        await r.text();
+        return [r.status === 200, `status ${r.status}`];
+      }),
+    );
+  }
+  // client.badssl.com answers 400 to a connection that showed no certificate.
+  for (const [label, clientCert] of [
+    ['client.badssl.com without a certificate: 400', undefined],
+    ['client.badssl.com with its certificate: 200', badssl],
+  ] as const) {
+    out.push(
+      await run('tls', label, async () => {
+        const r = await new Session({
+          timeoutMs: 15_000,
+          retry: false,
+          impersonate: profile,
+          clientCert,
+        }).get('https://client.badssl.com/');
+        await r.text();
+        return [r.status === (clientCert ? 200 : 400), `status ${r.status}`];
       }),
     );
   }

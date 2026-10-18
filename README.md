@@ -86,7 +86,7 @@ if (opts.expectedServerHostname != kj::none) {
 An autogate is a switch Cloudflare flips centrally, so the option can stop
 working without any release of yours. It is off in `wrangler dev`, which is why
 local testing proves nothing. So the certificate is checked here instead, by
-rustls compiled to WebAssembly (640 KB, 301 KB gzipped, committed — building it
+rustls compiled to WebAssembly (650 KB, 306 KB gzipped, committed — building it
 needs Rust, using it does not).
 
 ## Install
@@ -223,6 +223,41 @@ it, comes back to you rather than being followed, and it is never retried.
 Any other body — a string, `json`, `form`, bytes — is already in memory, goes
 out with a `Content-Length`, and is repeated freely.
 
+### Certificates
+
+A server's certificate must chain to the web PKI's roots, as in a browser,
+unless the session is told otherwise:
+
+```ts
+// A service on a private CA: trust it, and only it. PEM text or DER bytes.
+const internal = new Session({ ca: env.INTERNAL_CA_PEM });
+
+// One that asks who is calling: mutual TLS.
+const mutual = new Session({
+  ca: env.INTERNAL_CA_PEM,
+  clientCert: { cert: env.CLIENT_PEM, key: env.CLIENT_KEY_PEM },
+});
+
+// A server under test, on whatever certificate it has.
+const anything = new Session({ verify: false });
+```
+
+`ca` **replaces** the web PKI's roots rather than adding to them, as curl's
+`--cacert` and Node's `ca` do; the name is still checked against it.
+`verify: false` takes any certificate for any name, as `curl -k` does — the
+handshake must still be signed by the key of the certificate shown, but
+anyone between you and the server can show one. It applies to an HTTPS
+proxy's certificate too. A client key may be PEM, or DER as PKCS#8, PKCS#1
+or SEC1, and RSA, ECDSA on P-256 or P-384, and Ed25519 keys all sign; an
+encrypted PEM key is not read, so take its password off first. A key is a
+secret: keep it in a Worker secret, not in code.
+
+These belong to the session, not to a request: rustls resumes a ticket only
+under the trust and certificate that earned it. Checked live against
+badssl.com — `self-signed.`, `wrong.host.` and `expired.` are taken with
+`verify: false` and refused without it, and `client.` answers 400 without
+its certificate and 200 with it.
+
 ### Cookies
 
 A session can keep them, and a jar is always something the caller holds — one
@@ -306,8 +341,9 @@ chain, which resuming does not need; a saved session is usually well under
 a kilobyte.
 
 What is saved is the identity, not the plumbing: the proxy and its
-password, timeouts and headers are given to `unmarshal` again, so a saved
-state never carries a proxy's credentials. A state saved as one browser is
+password, timeouts, headers, `ca` and a client certificate are given to
+`unmarshal` again, so a saved
+state never carries a proxy's credentials or a client key. A state saved as one browser is
 refused as another — its tickets and cookies behind a different handshake
 are the mismatch a bot check looks for — and one saved with a profile of
 your own needs that profile passed again. A state from a newer build is
@@ -393,26 +429,27 @@ different TLS stack means implementing six methods.
 
 ## What it does and does not do
 
-|                                                  |                                |
-| ------------------------------------------------ | ------------------------------ |
-| SOCKS5, with username/password auth              | yes                            |
-| SOCKS4 and 4a                                    | yes, no IPv6 targets           |
-| HTTP `CONNECT`, with basic auth                  | yes                            |
-| HTTP `CONNECT` over TLS to the proxy             | yes, its certificate checked   |
-| TLS 1.2 and 1.3, certificates verified           | yes                            |
-| Short certificate chains completed from AIA      | yes, as browsers do            |
-| Streaming request and response bodies            | yes                            |
-| gzip, deflate, brotli and zstd, undone for you   | yes, see below                 |
-| Timeouts and `AbortSignal`                       | yes                            |
-| Redirects, with credentials dropped across hosts | yes                            |
-| HTTP/2, with HPACK and flow control              | yes                            |
-| Connections kept, HTTP/2 multiplexed             | yes, per session               |
-| Browser impersonation, TLS and HTTP/2            | 35 browsers, see below         |
-| Cookies, with domain and path scoping            | yes                            |
-| Retries, idempotent methods only by default      | yes                            |
-| Basic, Bearer and Digest authentication          | yes, Digest in MD5 and SHA-256 |
-| WebSocket, over its own `http/1.1` connection    | yes, with permessage-deflate   |
-| HTTP/3                                           | never — a Worker has no UDP    |
+|                                                   |                                |
+| ------------------------------------------------- | ------------------------------ |
+| SOCKS5, with username/password auth               | yes                            |
+| SOCKS4 and 4a                                     | yes, no IPv6 targets           |
+| HTTP `CONNECT`, with basic auth                   | yes                            |
+| HTTP `CONNECT` over TLS to the proxy              | yes, its certificate checked   |
+| TLS 1.2 and 1.3, certificates verified            | yes                            |
+| Short certificate chains completed from AIA       | yes, as browsers do            |
+| Your own CA, `verify: false`, client certificates | yes, per session               |
+| Streaming request and response bodies             | yes                            |
+| gzip, deflate, brotli and zstd, undone for you    | yes, see below                 |
+| Timeouts and `AbortSignal`                        | yes                            |
+| Redirects, with credentials dropped across hosts  | yes                            |
+| HTTP/2, with HPACK and flow control               | yes                            |
+| Connections kept, HTTP/2 multiplexed              | yes, per session               |
+| Browser impersonation, TLS and HTTP/2             | 35 browsers, see below         |
+| Cookies, with domain and path scoping             | yes                            |
+| Retries, idempotent methods only by default       | yes                            |
+| Basic, Bearer and Digest authentication           | yes, Digest in MD5 and SHA-256 |
+| WebSocket, over its own `http/1.1` connection     | yes, with permessage-deflate   |
+| HTTP/3                                            | never — a Worker has no UDP    |
 
 The target hostname is sent to the proxy as a name, not an address, so DNS is
 resolved at the proxy rather than leaking from the Worker.
