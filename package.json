@@ -37,6 +37,7 @@
     "rust-tls/src",
     "rust-tls/Cargo.toml",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
