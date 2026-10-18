@@ -18,6 +18,25 @@ const session = new Session({
 const response = await session.fetch('https://api.example.com/v1/models');
 ```
 
+## Status
+
+**Experimental, before 0.1.0.** What it does is tested — 371 tests in Node,
+and a live run against real servers before every change — but it has not yet
+carried anyone's production traffic, and:
+
+- **The API may change** between minor versions until 1.0.0. The changes
+  are written down in [CHANGELOG.md](CHANGELOG.md).
+- **Profiles age.** Browsers change their handshake and headers every few
+  releases; a profile matches the browser it was recorded from, and a site
+  may start telling it apart once that browser is old. They are re-recorded
+  as browsers move on, not on a schedule.
+- **It is not on npm yet**; see [Install](#install).
+- **The TLS is a fork of rustls**, compiled to WebAssembly, and has had no
+  security review of its own. The fork changes how the ClientHello is
+  written, not how certificates are checked.
+
+Pin a commit, and read the changelog before moving it.
+
 ## Who it is for
 
 - Workers whose requests must leave from somewhere other than Cloudflare's
