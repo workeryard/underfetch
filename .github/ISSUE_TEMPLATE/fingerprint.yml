@@ -1,0 +1,29 @@
+name: A site tells it apart from the browser
+description: A profile is refused where the real browser, from the same address, is not.
+labels: [fingerprint]
+body:
+  - type: input
+    id: site
+    attributes:
+      label: Site
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Profile
+      placeholder: chrome, firefox158, …
+    validations:
+      required: true
+  - type: checkboxes
+    id: control
+    attributes:
+      label: The control
+      options:
+        - label: The real browser loads the page from the same address, at about the same time.
+          required: true
+  - type: textarea
+    id: seen
+    attributes:
+      label: What came back
+      description: Status, the bot manager if you know it, and what tls.peet.ws/api/all shows for the profile against the browser.

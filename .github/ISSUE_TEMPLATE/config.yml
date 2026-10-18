@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/workeryard/underfetch/blob/main/SECURITY.md
+    about: Privately, not in an issue.
+  - name: Ask a question
+    url: https://github.com/orgs/workeryard/discussions
+    about: Usage questions go to Discussions.

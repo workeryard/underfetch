@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as the readme says it does.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: The smallest code that shows it
+      description: A request, its options, and the target if it is public. Leave out credentials, cookies and keys.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version, or commit
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Where it ran
+      options:
+        - Deployed Worker
+        - wrangler dev
+        - Node
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: The profile, the proxy kind, the full error and its cause.
