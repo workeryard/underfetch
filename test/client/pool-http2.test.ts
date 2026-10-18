@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { encodeFrame, encodeSettings, FrameType, Setting } from '../../src/http/h2/frames';
 import type { Dial } from '../../src/net/socket';
+import { DEFAULT_PROFILE } from '../../src/http/h2/connection';
 import { dataFrame, headersFrame, http2Server, on, path } from './pool-peers';
 
 describe('a kept HTTP/2 connection', () => {
@@ -133,5 +134,84 @@ describe('a kept HTTP/2 connection', () => {
     for (const answer of waiting) answer();
     await Promise.all([(await first).text(), (await second).text()]);
     expect(server.frames).toHaveLength(2);
+  });
+});
+
+/** Each HEADERS frame's stream, exclusive bit, dependency and weight. */
+const priorities = (
+  frames: { type: number; flags: number; stream: number; payload: Uint8Array }[],
+) =>
+  frames
+    .filter((f) => f.type === FrameType.Headers)
+    .map((f) => {
+      const word = new DataView(f.payload.buffer, f.payload.byteOffset).getUint32(0);
+      return [f.stream, word >>> 31 === 1, word & 0x7fffffff, f.payload[4]! + 1];
+    });
+
+describe('streams as a browser numbers and chains them', () => {
+  it('chains streams open at once, as Chromium does, and roots one sent after', async () => {
+    const waiting: (() => void)[] = [];
+    const server = http2Server((stream, _headers, send) => {
+      waiting.push(() => {
+        send(headersFrame(stream, 200));
+        send(dataFrame(stream, 'ok'));
+      });
+    });
+    const chromium = {
+      ...DEFAULT_PROFILE,
+      priority: { weight: 256, exclusive: true },
+      dependOnOpen: true,
+    };
+    const session = on(server.dial, 'h2', { http2: chromium });
+
+    const together = ['/a', '/b', '/c'].map((p) => session.get(`https://example.com${p}`));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    for (const answer of waiting.splice(0)) answer();
+    for (const response of await Promise.all(together)) await response.text();
+    const after = session.get('https://example.com/after');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    for (const answer of waiting.splice(0)) answer();
+    await (await after).text();
+
+    expect(priorities(server.frames[0]!)).toEqual([
+      [1, true, 0, 256],
+      [3, true, 1, 256],
+      [5, true, 3, 256],
+      [7, true, 0, 256],
+    ]);
+  });
+
+  it('starts at stream 3 and widens each stream, as Firefox does', async () => {
+    const server = http2Server((stream, _headers, send) => {
+      send(headersFrame(stream, 200));
+      send(dataFrame(stream, 'ok'));
+    });
+    const firefox = {
+      ...DEFAULT_PROFILE,
+      priority: { weight: 42, exclusive: false },
+      firstStream: 3,
+      streamWindowUpdate: 12_451_840,
+    };
+    const session = on(server.dial, 'h2', { http2: firefox });
+    await (await session.get('https://example.com/1')).text();
+    await (await session.get('https://example.com/2')).text();
+
+    const sent = server.frames[0]!.filter(
+      (f) => f.type === FrameType.Headers || (f.type === FrameType.WindowUpdate && f.stream !== 0),
+    );
+    expect(sent.map((f) => [f.type, f.stream])).toEqual([
+      [FrameType.Headers, 3],
+      [FrameType.WindowUpdate, 3],
+      [FrameType.Headers, 5],
+      [FrameType.WindowUpdate, 5],
+    ]);
+    const increment = new DataView(sent[1]!.payload.buffer, sent[1]!.payload.byteOffset).getUint32(
+      0,
+    );
+    expect(increment).toBe(12_451_840);
+    expect(priorities(server.frames[0]!).map(([, exclusive, on]) => [exclusive, on])).toEqual([
+      [false, 0],
+      [false, 0],
+    ]);
   });
 });

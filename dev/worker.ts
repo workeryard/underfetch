@@ -301,7 +301,13 @@ export default {
           { status: 502 },
         );
       }
-      const body = await response.text();
+      let body: string;
+      try {
+        body = await response.text();
+      } catch (error) {
+        // An answer cut off partway is a result too, not a crash of the probe.
+        body = `(the body failed: ${String(error)})`;
+      }
       return Response.json({
         status: response.status,
         elapsedMs: Date.now() - started,

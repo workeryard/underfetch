@@ -19,8 +19,8 @@ import {
   encodeFrame,
   encodeRstStream,
   encodeSettings,
+  windowUpdateFrame,
   ErrorCode,
-  encodeWindowUpdate,
   errorName,
   Flags,
   FrameType,
@@ -34,6 +34,7 @@ import {
 import { DEFAULT_MAX_FRAME, DEFAULT_WINDOW, ReceiveWindows } from './flow';
 import {
   DEFAULT_PROFILE,
+  dependency,
   joined,
   outgoing,
   type Http2ConnectionOptions,
@@ -63,7 +64,7 @@ export class Http2Connection {
   readonly #options: Http2ConnectionOptions;
   readonly #streams = new Map<number, Http2Stream>();
   readonly #host: StreamHost;
-  #nextId = 1;
+  #nextId: number;
 
   // What the server allows us: its frame size, its streams, its windows.
   #maxFrame = DEFAULT_MAX_FRAME;
@@ -93,8 +94,9 @@ export class Http2Connection {
     this.#options = options;
     const setting = (id: number) => profile.settings.find(([known]) => known === id)?.[1];
     this.#readLimit = setting(Setting.MaxFrameSize) ?? DEFAULT_MAX_FRAME;
+    this.#nextId = profile.firstStream ?? 1;
     this.#received = new ReceiveWindows(
-      setting(Setting.InitialWindowSize) ?? DEFAULT_WINDOW,
+      (setting(Setting.InitialWindowSize) ?? DEFAULT_WINDOW) + (profile.streamWindowUpdate ?? 0),
       DEFAULT_WINDOW + profile.windowUpdate,
       (frame) => this.#post(frame),
     );
@@ -112,9 +114,7 @@ export class Http2Connection {
     void this.#write(PREFACE);
     void this.#write(encodeFrame(FrameType.Settings, 0, 0, encodeSettings(profile.settings)));
     if (profile.windowUpdate > 0) {
-      void this.#write(
-        encodeFrame(FrameType.WindowUpdate, 0, 0, encodeWindowUpdate(profile.windowUpdate)),
-      );
+      void this.#write(windowUpdateFrame(0, profile.windowUpdate));
     }
     void this.#loop();
   }
@@ -146,24 +146,28 @@ export class Http2Connection {
     // Registered before anything is awaited, so no frame for it is missed.
     const stream = new Http2Stream(this.#nextId, this.#initialWindow, decoders);
     this.#nextId += 2;
+    const dependsOn = profile.dependOnOpen
+      ? dependency(this.#streams.values(), profile.priority)
+      : 0;
+    stream.weight = profile.priority?.weight ?? 0;
     this.#streams.set(stream.id, stream);
-    if (signal !== undefined) {
-      const abort = () => this.#cancel(stream, signal.reason as Error);
-      if (signal.aborted) abort();
-      signal.addEventListener('abort', abort, { once: true });
-      stream.unlisten = () => signal.removeEventListener('abort', abort);
-    }
+    stream.watch(signal, (reason) => this.#cancel(stream, reason));
 
     try {
       const { body, frames } = await outgoing(request, stream.id, profile, {
         streamBody,
         headerOrder,
         maxFrame: this.#maxFrame,
+        dependsOn,
       });
       if (stream.error !== undefined) return await stream.answer;
       if (body === null) stream.sentEnd = true;
+      // Firefox's window update rides with its HEADERS: sent after, it could
+      // reach a server that had already answered and closed the stream.
+      const widen = profile.streamWindowUpdate;
+      const out = widen ? joined([frames, windowUpdateFrame(stream.id, widen)]) : frames;
       try {
-        await this.#writer.write(frames);
+        await this.#writer.write(out);
       } catch (error) {
         // Nothing reached the server, so nothing was acted on: this stream
         // learns that before the rest learn the connection is gone.

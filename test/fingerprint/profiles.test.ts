@@ -277,3 +277,30 @@ describe('the ClientHello', () => {
     expect(helloFor(profiles.chrome150).extensions).not.toContain(0x0015);
   });
 });
+
+describe('how a profile numbers and chains its streams', () => {
+  it('follows what each family was measured doing', () => {
+    for (const [name, profile] of Object.entries(profiles)) {
+      const { dependOnOpen, firstStream, streamWindowUpdate } = profile.http2;
+      if (profile.family === 'chromium') {
+        expect([dependOnOpen, firstStream, streamWindowUpdate], name).toEqual([
+          true,
+          undefined,
+          undefined,
+        ]);
+      } else if (profile.family === 'firefox') {
+        expect([dependOnOpen, firstStream, streamWindowUpdate], name).toEqual([
+          undefined,
+          3,
+          12_451_840,
+        ]);
+      } else {
+        expect([dependOnOpen, firstStream, streamWindowUpdate], name).toEqual([
+          undefined,
+          undefined,
+          undefined,
+        ]);
+      }
+    }
+  });
+});

@@ -36,6 +36,20 @@ export interface Http2Profile {
    * one, each with its own weight; Safari sends none, which is left out here.
    */
   priority?: { weight: number; exclusive: boolean } | undefined;
+  /**
+   * Make each stream depend, exclusively, on the newest stream still open at
+   * its priority or above, and on none when there is no such stream — as
+   * Chromium does, so requests at once form a chain where requests one after
+   * another each start from the root. Left out, every stream depends on none.
+   */
+  dependOnOpen?: boolean | undefined;
+  /** The first stream a request goes on. Firefox starts at 3. Default: 1. */
+  firstStream?: number | undefined;
+  /**
+   * Sent for each new stream straight after its HEADERS, widening that
+   * stream's window past the SETTINGS one, as Firefox does: 128 KB to 12 MB.
+   */
+  streamWindowUpdate?: number | undefined;
 }
 
 /** What Chrome sends, and a reasonable default for anything else. */
@@ -112,16 +126,35 @@ export function requestHeaders(
 
 /**
  * Puts the priority fields in front of a header block: the exclusive bit and
- * a dependency on stream 0, then the weight less one, as RFC 9113 §6.2 writes
+ * the stream depended on, then the weight less one, as RFC 9113 §6.2 writes
  * it.
  */
-export function withPriority(block: Uint8Array, priority: Http2Profile['priority']): Uint8Array {
+export function withPriority(
+  block: Uint8Array,
+  priority: Http2Profile['priority'],
+  dependsOn = 0,
+): Uint8Array {
   if (priority === undefined) return block;
   const out = new Uint8Array(5 + block.length);
-  new DataView(out.buffer).setUint32(0, priority.exclusive ? 0x8000_0000 : 0);
+  new DataView(out.buffer).setUint32(0, (priority.exclusive ? 0x8000_0000 : 0) | dependsOn);
   out[4] = priority.weight - 1;
   out.set(block, 5);
   return out;
+}
+
+/**
+ * The stream a new one depends on, as Chromium chooses it: the newest still
+ * open at its priority or above — weight standing for priority, which is how
+ * Chromium maps one to the other — or none.
+ */
+export function dependency(
+  open: Iterable<{ id: number; weight: number }>,
+  priority: Http2Profile['priority'],
+): number {
+  if (priority === undefined) return 0;
+  let found = 0;
+  for (const stream of open) if (stream.weight >= priority.weight) found = stream.id;
+  return found;
 }
 
 export function joined(parts: readonly Uint8Array[]): Uint8Array {
@@ -170,9 +203,14 @@ export async function outgoing(
   request: Request,
   id: number,
   profile: Http2Profile,
-  options: { streamBody: boolean; headerOrder: readonly string[] | undefined; maxFrame: number },
+  options: {
+    streamBody: boolean;
+    headerOrder: readonly string[] | undefined;
+    maxFrame: number;
+    dependsOn: number;
+  },
 ): Promise<{ frames: Uint8Array; body: ReadableStream<Uint8Array> | null }> {
-  const { streamBody, headerOrder, maxFrame } = options;
+  const { streamBody, headerOrder, maxFrame, dependsOn } = options;
   const buffered =
     streamBody || request.body === null ? null : new Uint8Array(await request.arrayBuffer());
   const body =
@@ -185,7 +223,7 @@ export async function outgoing(
           : once(buffered!);
   const length = request.body === null || buffered === null ? null : buffered.byteLength;
   const headers = requestHeaders(request, new URL(request.url), profile, length, headerOrder);
-  const block = withPriority(new Hpack().encode(headers), profile.priority);
+  const block = withPriority(new Hpack().encode(headers), profile.priority, dependsOn);
   const frames = headerFrames(id, block, {
     endStream: body === null,
     priority: profile.priority !== undefined,

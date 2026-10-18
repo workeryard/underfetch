@@ -3,7 +3,7 @@
  * request body cut into chunks that know which one is last.
  */
 
-import { encodeFrame, encodeWindowUpdate, FrameType } from './frames';
+import { windowUpdateFrame } from './frames';
 
 export const DEFAULT_MAX_FRAME = 16_384;
 /** Every window starts here until a SETTINGS frame or WINDOW_UPDATE says more. */
@@ -36,15 +36,13 @@ export class ReceiveWindows {
   consumed(stream: Receiving | undefined, cost: number): void {
     this.#unacked += cost;
     if (this.#unacked >= this.connection / 2) {
-      this.post(encodeFrame(FrameType.WindowUpdate, 0, 0, encodeWindowUpdate(this.#unacked)));
+      this.post(windowUpdateFrame(0, this.#unacked));
       this.#unacked = 0;
     }
     if (stream === undefined || stream.ended) return;
     stream.unacked += cost;
     if (stream.unacked >= this.stream / 2) {
-      this.post(
-        encodeFrame(FrameType.WindowUpdate, 0, stream.id, encodeWindowUpdate(stream.unacked)),
-      );
+      this.post(windowUpdateFrame(stream.id, stream.unacked));
       stream.unacked = 0;
     }
   }

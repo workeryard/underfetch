@@ -93,11 +93,33 @@ export interface Impersonation {
   };
 }
 
+/**
+ * How a browser numbers, chains and widens its HTTP/2 streams, which no
+ * capture records — the Akamai string is the connection's opening alone.
+ * Measured on 2026-10-18 with Chrome 155, Edge 154 and Firefox 158 on
+ * Windows, behind a proxy that logged every frame they sent
+ * (`scripts/capture-frames.ts`): four images at once, four fetch() calls at
+ * once, then two one after the other.
+ *
+ * Chromium chains streams open at once, each depending exclusively on the
+ * last; one sent after the others finished depends on none. Firefox starts
+ * at stream 3, depends on none, and widens each stream's 128 KB window to
+ * 12 MB with a WINDOW_UPDATE straight after its HEADERS. The Firefox values
+ * were measured on 158; the older profiles open with the same SETTINGS and
+ * no PRIORITY frames, which is what starting at 3 goes with, but were not
+ * themselves watched. There is no Safari measurement.
+ */
+const STREAMS: Partial<Record<Family, Partial<Http2Profile>>> = {
+  chromium: { dependOnOpen: true },
+  firefox: { firstStream: 3, streamWindowUpdate: 12_451_840 },
+};
+
 /** A profile that sends what the captured browser sent. */
 function fromCapture(capture: Capture): Impersonation {
+  const family = familyOf(capture.source);
   return {
     alpn: capture.alpn,
-    http2: capture.http2,
+    http2: { ...capture.http2, ...(family === undefined ? {} : STREAMS[family]) },
     ciphers: capture.ciphers,
     signatureSchemes: capture.signatureSchemes,
     greaseNamedGroup: capture.greaseNamedGroup,
@@ -111,7 +133,7 @@ function fromCapture(capture: Capture): Impersonation {
         return body === undefined ? [] : [[type, body]];
       }),
     headers: capture.headers,
-    family: familyOf(capture.source),
+    family,
     expected: capture.expected,
   };
 }

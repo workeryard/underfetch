@@ -69,7 +69,10 @@ function parseAkamai(akamai: string, base: Http2Profile): Http2Profile {
   if (order.some((p) => !['m', 'a', 's', 'p'].includes(p))) {
     throw new FingerprintError(`unknown pseudo-header order: ${pseudo}`);
   }
+  // How streams are numbered, chained and widened is the base browser's,
+  // which an Akamai string does not record.
   return {
+    ...base,
     settings: (settings ?? '')
       .split(/[;,]/)
       .filter(Boolean)
@@ -82,7 +85,6 @@ function parseAkamai(akamai: string, base: Http2Profile): Http2Profile {
       }),
     windowUpdate: Number(window) || 0,
     pseudoHeaderOrder: order as Http2Profile['pseudoHeaderOrder'],
-    priority: base.priority,
   };
 }
 

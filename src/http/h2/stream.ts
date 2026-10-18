@@ -41,6 +41,8 @@ export class Http2Stream {
   error: Error | undefined;
   /** Bytes read and not yet given back to the server's window. */
   unacked = 0;
+  /** The weight its HEADERS carried, which stands for its priority. */
+  weight = 0;
   unlisten: () => void = () => undefined;
   readonly answer: Promise<Response>;
 
@@ -65,6 +67,15 @@ export class Http2Stream {
     });
     // An answer nobody waits for any more must not surface as unhandled.
     this.answer.catch(() => undefined);
+  }
+
+  /** Gives up on the stream, by `cancel`, when `signal` aborts. */
+  watch(signal: AbortSignal | undefined, cancel: (reason: Error) => void): void {
+    if (signal === undefined) return;
+    const abort = () => cancel(signal.reason as Error);
+    if (signal.aborted) abort();
+    signal.addEventListener('abort', abort, { once: true });
+    this.unlisten = () => signal.removeEventListener('abort', abort);
   }
 
   /** Something changed that a waiting upload or read should look at. */

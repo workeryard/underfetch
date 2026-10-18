@@ -629,6 +629,15 @@ begin at 133, and its Akamai priority field is `0` like the rest — so every
 Akamai string matches whole. An older Firefox's string that names some is refused
 below rather than sent without them.
 
+What the Akamai string leaves out — how streams after the first are numbered
+and chained — was watched in the browsers themselves (`scripts/capture-frames.ts`,
+Chrome 155, Edge 154, Firefox 158). A Chromium profile makes each stream
+depend, exclusively, on the newest one still open at its priority or above, so
+requests sent at once form a chain and one sent after them starts from the
+root. A Firefox profile starts at stream 3, depends on none, and widens each
+stream's window to 12 MB with a WINDOW_UPDATE sent with its HEADERS. The older
+Firefox and Tor profiles do the same by inference, not by watching them.
+
 A browser that is not built in can be taken from the two strings
 [tls.peet.ws/api/all](https://tls.peet.ws/api/all) shows when opened in it —
 `ja3` and `akamai_fingerprint`. Neither string carries the signature

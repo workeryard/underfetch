@@ -131,6 +131,10 @@ export function encodeWindowUpdate(increment: number): Uint8Array {
   return payload;
 }
 
+/** A whole WINDOW_UPDATE frame, for the connection (stream 0) or one stream. */
+export const windowUpdateFrame = (stream: number, increment: number) =>
+  encodeFrame(FrameType.WindowUpdate, 0, stream, encodeWindowUpdate(increment));
+
 export function encodeRstStream(stream: number, code: number): Uint8Array {
   const payload = new Uint8Array(4);
   new DataView(payload.buffer).setUint32(0, code);
