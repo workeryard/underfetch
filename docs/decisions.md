@@ -125,18 +125,21 @@ UDP, and the runtime owns the socket below TLS.
 
 ## Open
 
-**Firefox's GREASE ECH payload length.** The importer has given every
-Firefox profile 223 bytes since it was written, with no record of where that
-came from; Firefox 158 sent 240 to `localhost`. NSS may size it by the server
-name, which would make any single number wrong somewhere. Not changed until
-measured against hosts of different lengths. JA4 does not read it.
-
 **A server choosing ML-DSA.** Chrome 155 offers ML-DSA signatures and so do
 we, but the TLS module cannot verify one. No public server is known to hold
 an ML-DSA certificate yet; one that does and picks it would fail the
 handshake rather than fall back. Watch for it before it is common.
 
 ## Found along the way
+
+- Firefox's GREASE ECH payload does not depend on the hostname (2026-10-19).
+  Firefox 158 sent 240 bytes to names of 9, 14, 33, 51 and 75 characters.
+  NSS (`tls13_PadChInner` in lib/ssl/tls13ech.c) pads the compressed inner
+  hello up to a fixed name length, rounds to 32 and adds the 16-byte tag, so
+  the size is fixed per browser version, by its extensions alone. The 223 the
+  older Firefox profiles send cannot come from that rule (207 is no multiple
+  of 32); it predates it or was a guess, and with no older Firefox at hand it
+  stays as it is. JA4 does not read it.
 
 - An idle kept socket does not count toward a Worker's six simultaneous
   connections: the limit counts a `connect()` only while it is being opened,
