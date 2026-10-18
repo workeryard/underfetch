@@ -300,8 +300,8 @@ export class Session extends PlainSession {
  * One request, for when a session would only be built to be thrown away.
  *
  * Each of these opens its own connection, so a caller making several should
- * hold a `Session` instead — it keeps the proxy, the profile and the headers
- * in one place rather than repeating them.
+ * hold a `Session` instead — it keeps the connections open between them, and
+ * the proxy, the profile and the headers in one place.
  */
 export function request(
   method: string,
@@ -309,7 +309,11 @@ export function request(
   init?: WorkerRequestInit,
 ): Promise<Response> {
   const { impersonate, ja3, akamai, shuffle, ...rest } = init ?? {};
-  return new Session({ impersonate, ja3, akamai, shuffle }).fetch(input, { ...rest, method });
+  // Nothing else will ride its connection, so it closes with the answer.
+  return new Session({ impersonate, ja3, akamai, shuffle, keepAlive: false }).fetch(input, {
+    ...rest,
+    method,
+  });
 }
 
 export interface WorkerRequestInit

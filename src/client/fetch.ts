@@ -8,15 +8,15 @@
  * or a Worker.
  */
 
-import { http2Fetch, type Http2Profile } from '../http/h2/connection';
+import type { Http2Profile } from '../http/h2/connection';
 import type { Decoders } from '../http/decompress';
-import { http1Fetch } from '../http/http1';
 import { tunnelThrough } from '../net/proxy';
 import type { ByteSocket, Dial, Proxy } from '../net/socket';
 import { chaseIssuers, decodeCertificates, MAX_CERTIFICATE_BYTES } from '../tls/aia';
 import { missingIssuer, unverifiableSignature } from '../tls/errors';
 import { tlsTunnel, type TlsFactory, type TlsOptions, type TlsSession } from '../tls/tunnel';
 import { deadline, until } from './abort';
+import { ConnectionPool, poolKey } from './pool';
 
 export interface FetchOverOptions {
   /** Opens a plain TCP connection; the runtime supplies this. */
@@ -59,46 +59,15 @@ export interface FetchOverOptions {
    * which is alphabetical.
    */
   headerOrder?: readonly string[] | undefined;
+  /**
+   * Connections to send it on and to keep for the next request, which is
+   * what a `Session` passes. Left out, the request gets a connection of its
+   * own, closed once the answer has been read.
+   */
+  pool?: ConnectionPool | undefined;
 }
 
 const defaultPort = (url: URL) => (url.protocol === 'http:' || url.protocol === 'ws:' ? 80 : 443);
-
-/**
- * Closes the tunnel once the answer has been read to the end, cancelled, or
- * failed. Nothing may close it earlier: the body is still streaming through it.
- */
-function closingWhenDone(
-  body: ReadableStream<Uint8Array>,
-  socket: ByteSocket,
-  signal: AbortSignal,
-): ReadableStream<Uint8Array> {
-  const reader = body.getReader();
-  const shut = () => {
-    void socket.close().catch(() => undefined);
-  };
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { value, done } = await reader.read();
-        if (done) {
-          shut();
-          controller.close();
-          return;
-        }
-        if (value) controller.enqueue(value);
-      } catch (error) {
-        shut();
-        // The deadline closes the socket to stop the read, and the read then
-        // fails as a closed socket; the caller should hear why it was closed.
-        throw signal.aborted ? (signal.reason as Error) : error;
-      }
-    },
-    cancel(reason) {
-      shut();
-      return reader.cancel(reason);
-    },
-  });
-}
 
 /**
  * Reads a body of at most `limit` bytes; anything larger comes back empty,
@@ -132,8 +101,9 @@ async function capped(response: Response, limit: number): Promise<Uint8Array> {
  * Performs `request` over a connection of our own: `dial` opens the socket,
  * `tls` secures it, and `proxy`, when given, is where it leaves from — so it
  * reaches the target from the proxy's address rather than Cloudflare's.
- * One request, one connection; `Session` is what keeps settings between
- * them. The answer's body is still streaming when this resolves.
+ * Without a `pool` it is one request on one connection; `Session` is what
+ * keeps settings and connections between them. The answer's body is still
+ * streaming when this resolves.
  */
 export async function fetchOver(request: Request, options: FetchOverOptions): Promise<Response> {
   const url = new URL(request.url);
@@ -292,8 +262,11 @@ async function toProxy(socket: ByteSocket, proxy: Proxy, tls: TlsFactory): Promi
   return { readable: secured.readable, writable: secured.writable, close: () => socket.close() };
 }
 
-/** One connection: dial, tunnel, TLS, and the request over whichever HTTP. */
-async function attempt(
+/**
+ * One try: on a connection the pool holds, or else one dialled, tunnelled
+ * and secured here, with the request over whichever HTTP ALPN settled on.
+ */
+function attempt(
   request: Request,
   url: URL,
   options: FetchOverOptions,
@@ -301,23 +274,12 @@ async function attempt(
   signal: AbortSignal,
 ): Promise<Response> {
   const { http2, streamBody, decoders, headerOrder } = options;
-  const carrier = await openCarrier(url, options, tls, signal);
-  const stop = () => void carrier.socket.close().catch(() => undefined);
-
-  try {
-    // ALPN, not guesswork: speaking the wrong one hangs the connection.
-    const exchange = () =>
-      carrier.protocol === 'h2'
-        ? http2Fetch(carrier, request, http2, { streamBody, decoders, headerOrder })
-        : http1Fetch(carrier, request, { streamBody, decoders, headerOrder });
-    const response = await until(signal, exchange());
-    if (response.body === null) {
-      stop();
-      return response;
-    }
-    return new Response(closingWhenDone(response.body, carrier.socket, signal), response);
-  } catch (error) {
-    stop();
-    throw error;
-  }
+  const pool = options.pool ?? new ConnectionPool({ keepAlive: false });
+  const port = url.port === '' ? defaultPort(url) : Number(url.port);
+  return pool.exchange(
+    poolKey(url, port, options.proxy),
+    () => openCarrier(url, options, tls, signal),
+    request,
+    { http2, streamBody, decoders, headerOrder, signal },
+  );
 }

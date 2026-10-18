@@ -58,11 +58,11 @@ and cookies still go through the session. It is off by default, a WebSocket is
 never sent this way, and with a proxy it never happens.
 
 Two more limits come from the platform rather than from here. Each connection
-counts against the subrequests one invocation may make — a redirect, a retry,
-a fetched intermediate and a WebSocket each open one — so a Worker making many
-requests per invocation runs out sooner than it would with `fetch`, which
-reuses connections. And requests leave from Cloudflare's addresses unless a
-proxy says otherwise; some sites limit those (Google answered 429).
+counts against the subrequests one invocation may make, so a session keeps its
+connections and sends what it can down one already open (see
+[Connections](#connections)); a WebSocket, a fetched intermediate and every
+new host still cost one each. And requests leave from Cloudflare's addresses
+unless a proxy says otherwise; some sites limit those (Google answered 429).
 
 ## Why TLS is done here
 
@@ -162,7 +162,8 @@ await api.post('/v1/chat/completions', { json: { model: 'x', messages } });
 await api.del('/v1/files/abc');
 ```
 
-For one request, skip the session:
+For one request, skip the session — each of these opens a connection of its
+own and closes it with the answer:
 
 ```ts
 import { get, post, request } from 'underfetch/workers';
@@ -330,6 +331,47 @@ are, because repeating a request that changed something may change it twice.
 Say `methods: ['POST']` when you know it is safe. An `AbortError` is never
 retried either: that is the caller changing their mind, not a failure.
 
+### Connections
+
+A session keeps its connections, as a browser does. Every request to an
+origin over HTTP/2 goes down one connection, several at once on streams of
+their own; an HTTP/1.1 connection is kept once its answer has been read, and
+carries the next. Connections are told apart by scheme, host, port and proxy,
+so a request through another proxy never rides one opened for this one.
+
+Measured on the deployed Worker on 2026-10-18, 60 requests to httpbin.org in
+one invocation, 30 one after another and 30 at once:
+
+|                    | connections dialled | answered | time   |
+| ------------------ | ------------------- | -------- | ------ |
+| kept (default)     | 1                   | 60 of 60 | 8.7 s  |
+| `keepAlive: false` | 80                  | 50 of 60 | 16.6 s |
+
+Without them the invocation ran into the platform's limit on subrequests
+after 50 connections, and the retries spent more. In `wrangler dev`, four
+requests to Wikipedia after the first took 40 ms each rather than 125.
+
+A server may close a kept connection while it sits idle. A request that
+finds out so — nothing came back — goes again on a new connection, whatever
+its method, because the server never acted on it; so does one an HTTP/2
+server refused or left past its GOAWAY. A streamed body cannot go again, and
+the error is yours.
+
+```ts
+const session = new Session({ impersonate: 'chrome' });
+await Promise.all(urls.map((url) => session.get(url))); // one connection per origin
+session.close(); // let them go; the session can carry on with new ones
+```
+
+A connection belongs to the invocation that opened it: a Worker may not use
+a socket on behalf of another request. A session kept in global scope across
+requests therefore opens a fresh connection in each; its first request there
+tries the old one, fails at once, and goes again, which workerd logs as a
+warning about a promise resolved from a different request context. Nothing
+waits on it. Make a session per request, or accept the warning.
+
+`keepAlive: false` closes each connection with its answer.
+
 ### Without the Workers adapter
 
 The protocol layer names no runtime. Supply your own socket and TLS and it runs
@@ -343,6 +385,8 @@ await fetchOver(request, { dial, tls, proxy });
 ```
 
 `dial` opens a TCP connection and returns `{ readable, writable, close }`.
+Each call gets a connection of its own unless it is handed a `ConnectionPool`
+to share, which is what a `Session` does.
 `tls` returns a session with `receive`, `outgoing`, `send`, `plaintext`,
 `handshaking` and `close` — a sans-I/O state machine, so swapping in a
 different TLS stack means implementing six methods.
@@ -362,6 +406,7 @@ different TLS stack means implementing six methods.
 | Timeouts and `AbortSignal`                       | yes                            |
 | Redirects, with credentials dropped across hosts | yes                            |
 | HTTP/2, with HPACK and flow control              | yes                            |
+| Connections kept, HTTP/2 multiplexed             | yes, per session               |
 | Browser impersonation, TLS and HTTP/2            | 35 browsers, see below         |
 | Cookies, with domain and path scoping            | yes                            |
 | Retries, idempotent methods only by default      | yes                            |
@@ -624,7 +669,7 @@ Worker can check itself wherever it runs.
 ```
 src/
   index.ts        the runtime-free core, re-exported
-  client/         what a caller uses: fetch, Session, redirects, retries, cookies
+  client/         what a caller uses: fetch, Session, its connections, redirects, retries, cookies
   http/           HTTP/1.1, and HTTP/2 with its frames and header table
   tls/            driving TLS over a socket; rustls compiled to WebAssembly
   net/            sockets and the proxy handshakes, SOCKS5 and CONNECT

@@ -9,7 +9,7 @@ import {
   PREFACE,
   Setting,
 } from '../../src/http/h2/frames';
-import type { Http2Socket } from '../../src/http/h2/connection';
+import type { Http2Socket } from '../../src/http/h2/request';
 
 /** Splits a stream of frames the way a peer would read them. */
 export function framesIn(
@@ -35,19 +35,41 @@ export function framesIn(
 export const serverHeaders = (headers: readonly (readonly [string, string])[], flags: number) =>
   encodeFrame(FrameType.Headers, Flags.EndHeaders | flags, 1, new Hpack().encode(headers));
 
-export function socketOf(answer: Uint8Array[]): { socket: Http2Socket; written: number[] } {
+/**
+ * A socket whose server answers once the request has ended — its HEADERS or
+ * last DATA carrying END_STREAM — as a real one does. `early` goes out at
+ * once instead: settings, window updates, or an answer that will not wait
+ * for the body.
+ */
+export function socketOf(
+  answer: Uint8Array[],
+  early: Uint8Array[] = [],
+): { socket: Http2Socket; written: number[] } {
   const written: number[] = [];
+  let release: () => void = () => undefined;
+  const ended = () =>
+    framesIn(written).some(
+      (f) =>
+        f.stream !== 0 &&
+        (f.type === FrameType.Headers || f.type === FrameType.Data) &&
+        (f.flags & Flags.EndStream) !== 0,
+    );
   return {
     socket: {
       readable: new ReadableStream<Uint8Array>({
         start(controller) {
-          for (const frame of answer) controller.enqueue(frame);
-          controller.close();
+          for (const frame of early) controller.enqueue(frame);
+          release = () => {
+            release = () => undefined;
+            for (const frame of answer) controller.enqueue(frame);
+            controller.close();
+          };
         },
       }),
       writable: new WritableStream<Uint8Array>({
         write(chunk) {
           written.push(...chunk);
+          if (ended()) release();
         },
       }),
     },

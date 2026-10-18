@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { followRedirects } from '../../src/client/redirects';
 import { Hpack } from '../../src/http/h2/hpack';
 import { http2Fetch } from '../../src/http/h2/connection';
+import { socketOf } from '../http/h2-peer';
 import { encodeFrame, Flags, FrameType, PREFACE } from '../../src/http/h2/frames';
 import { http1Fetch, type Http1Socket } from '../../src/http/http1';
 
@@ -79,28 +80,18 @@ function framesIn(written: number[]) {
 }
 
 function h2Server() {
-  const written: number[] = [];
   const ok = encodeFrame(
     FrameType.Headers,
     Flags.EndHeaders | Flags.EndStream,
     1,
     new Hpack().encode([[':status', '200']]),
   );
+  const { socket, written } = socketOf(
+    [ok],
+    [encodeFrame(FrameType.Settings, 0, 0, new Uint8Array(0))],
+  );
   return {
-    socket: {
-      readable: new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(encodeFrame(FrameType.Settings, 0, 0, new Uint8Array(0)));
-          controller.enqueue(ok);
-          controller.close();
-        },
-      }),
-      writable: new WritableStream<Uint8Array>({
-        write(chunk) {
-          written.push(...chunk);
-        },
-      }),
-    },
+    socket,
     data: () => framesIn(written).filter((f) => f.type === FrameType.Data),
   };
 }

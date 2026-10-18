@@ -30,14 +30,20 @@ class Passthrough implements TlsSession {
   close(): void {}
 }
 
-/** A server that answers each connection from a queue of canned replies. */
+/**
+ * A server that answers each connection from a queue of canned replies,
+ * then hangs up — and says so, so no connection is kept for the next.
+ */
 function net(replies: string[]) {
   const dialled: string[] = [];
   const sent: string[] = [];
   let next = 0;
   const dial: Dial = (hostname, port) => {
     dialled.push(`${hostname}:${port}`);
-    const answer = replies[Math.min(next++, replies.length - 1)]!;
+    const answer = replies[Math.min(next++, replies.length - 1)]!.replace(
+      '\r\n',
+      '\r\nConnection: close\r\n',
+    );
     const written: number[] = [];
     const socket: ByteSocket = {
       readable: new ReadableStream<Uint8Array>({

@@ -29,10 +29,13 @@ class Passthrough implements TlsSession {
 
 const GRANTED = [0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0];
 const OPEN = [0x05, 0x00];
-const ANSWER = 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok';
+const ANSWER = 'HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok';
 const PROXY = { kind: 'socks5', hostname: '203.0.113.7', port: 1080 } as const;
 
-/** Records every address dialled and what was written to each socket. */
+/**
+ * Records every address dialled and what was written to each socket. The
+ * server hangs up after one answer, and says so.
+ */
 function net(withHandshake: boolean) {
   const dialled: string[] = [];
   const sent: string[] = [];

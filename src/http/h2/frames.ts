@@ -1,9 +1,9 @@
 /**
  * HTTP/2 frames (RFC 9113 §4): a nine-byte header and a payload.
  *
- * Only what a client sending one request needs is here. Frames it can receive
- * but has nothing to do with — PRIORITY, PUSH_PROMISE — are read and dropped
- * rather than rejected, because a peer is allowed to send them.
+ * Only what a client needs is here. Frames it can receive but has nothing to
+ * do with — PRIORITY, PUSH_PROMISE — are read and dropped rather than
+ * rejected, because a peer is allowed to send them.
  */
 
 import type { ByteReader } from '../../net/bytes';
@@ -14,6 +14,7 @@ export const FrameType = {
   Data: 0x0,
   Headers: 0x1,
   RstStream: 0x3,
+  PushPromise: 0x5,
   Settings: 0x4,
   Ping: 0x6,
   GoAway: 0x7,
@@ -39,8 +40,27 @@ export const Setting = {
   MaxHeaderListSize: 0x6,
 } as const;
 
+/** RFC 9113 §7: the error codes a client sends or acts on. */
+export const ErrorCode = {
+  NoError: 0x0,
+  RefusedStream: 0x7,
+  Cancel: 0x8,
+} as const;
+
 export class Http2Error extends Error {
   override name = 'Http2Error';
+  constructor(
+    message: string,
+    /**
+     * The server never acted on the request — a refused stream, or one past
+     * the last a GOAWAY promised to finish — so sending it again is safe,
+     * whatever its method.
+     */
+    readonly unprocessed = false,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
 }
 
 export interface Frame {
@@ -109,6 +129,12 @@ export function encodeWindowUpdate(increment: number): Uint8Array {
   const payload = new Uint8Array(4);
   new DataView(payload.buffer).setUint32(0, increment & 0x7fffffff);
   return payload;
+}
+
+export function encodeRstStream(stream: number, code: number): Uint8Array {
+  const payload = new Uint8Array(4);
+  new DataView(payload.buffer).setUint32(0, code);
+  return encodeFrame(FrameType.RstStream, 0, stream, payload);
 }
 
 /** Strips the padding a DATA or HEADERS frame may carry. */

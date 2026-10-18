@@ -1,10 +1,11 @@
 /**
- * One HTTP/2 request over a socket we opened ourselves.
+ * HTTP/2 over a socket we opened ourselves, as many requests at a time as
+ * the server allows.
  *
- * The scope is a single stream on a fresh connection, which is what a proxied
- * request needs and skips most of HTTP/2's complexity: no multiplexing, no
- * server push, no priority tree. What is left is the preface, a SETTINGS
- * exchange, one HEADERS frame out, and DATA frames in until the stream ends.
+ * One loop reads every frame and hands each to its stream; requests write
+ * their own HEADERS and DATA. What is left out is what a client may leave
+ * out: server push (refused in our SETTINGS), a priority tree, and PRIORITY
+ * frames, which no browser profile here sends.
  *
  * The settings we send are part of the fingerprint — a browser is as
  * recognisable by its SETTINGS frame as by its ClientHello — so they come from
@@ -12,13 +13,13 @@
  */
 
 import { ByteReader, ByteWriter } from '../../net/bytes';
-import { decompressed, type Decoders } from '../decompress';
-import { USER_AGENT } from '../user-agent';
-import { arrange } from '../../fingerprint/order';
-import { Hpack, type Header } from './hpack';
+import { Hpack } from './hpack';
 import {
+  decodeSettings,
   encodeFrame,
+  encodeRstStream,
   encodeSettings,
+  ErrorCode,
   encodeWindowUpdate,
   errorName,
   Flags,
@@ -30,317 +31,351 @@ import {
   Setting,
   unpad,
 } from './frames';
+import { DEFAULT_MAX_FRAME, DEFAULT_WINDOW, ReceiveWindows } from './flow';
 import {
-  control,
-  DEFAULT_MAX_FRAME,
-  DEFAULT_WINDOW,
-  once,
-  STREAM,
-  upload,
-  type Allowance,
-} from './flow';
+  DEFAULT_PROFILE,
+  joined,
+  outgoing,
+  type Http2ConnectionOptions,
+  type Http2Options,
+  type Http2Profile,
+  type Http2RequestOptions,
+  type Http2Socket,
+} from './request';
+import { Http2Stream, type StreamHost } from './stream';
 
-export interface Http2Socket {
-  readable: ReadableStream<Uint8Array>;
-  writable: WritableStream<Uint8Array>;
-}
+export { DEFAULT_PROFILE } from './request';
+export type { Http2Options, Http2Profile, Http2RequestOptions } from './request';
 
-export interface Http2Profile {
-  /** Sent verbatim, in this order: a browser is known by its SETTINGS. */
-  settings: readonly (readonly [number, number])[];
-  /** The connection-level window increment sent straight after the preface. */
-  windowUpdate: number;
-  /** Pseudo-header order, as the letters an Akamai fingerprint uses. */
-  pseudoHeaderOrder: readonly ('m' | 'a' | 's' | 'p')[];
-  /**
-   * The priority the request's HEADERS frame carries. Chrome and Firefox send
-   * one, each with its own weight; Safari sends none, which is left out here.
-   */
-  priority?: { weight: number; exclusive: boolean } | undefined;
-}
+/** Stream identifiers are 31 bits, and a client's are odd. */
+const LAST_STREAM = 2 ** 31 - 1;
 
-/** What Chrome sends, and a reasonable default for anything else. */
-export const DEFAULT_PROFILE: Http2Profile = {
-  settings: [
-    [Setting.HeaderTableSize, 65536],
-    [Setting.EnablePush, 0],
-    [Setting.InitialWindowSize, 6291456],
-    [Setting.MaxHeaderListSize, 262144],
-  ],
-  windowUpdate: 15663105,
-  pseudoHeaderOrder: ['m', 'a', 's', 'p'],
-};
+/**
+ * An HTTP/2 connection: the preface and SETTINGS go out as it is made, and
+ * each `request` opens a stream of its own on it.
+ */
+export class Http2Connection {
+  readonly #writer: ByteWriter;
+  readonly #reader: ByteReader;
+  /** Decodes the server's header blocks; its table spans every response. */
+  readonly #hpack = new Hpack();
+  readonly #profile: Http2Profile;
+  readonly #options: Http2ConnectionOptions;
+  readonly #streams = new Map<number, Http2Stream>();
+  readonly #host: StreamHost;
+  #nextId = 1;
 
-const PSEUDO = { m: ':method', a: ':authority', s: ':scheme', p: ':path' } as const;
+  // What the server allows us: its frame size, its streams, its windows.
+  #maxFrame = DEFAULT_MAX_FRAME;
+  #maxStreams = Infinity;
+  #initialWindow = DEFAULT_WINDOW;
+  #window = DEFAULT_WINDOW;
 
-function pseudoHeaders(request: Request, url: URL, order: Http2Profile['pseudoHeaderOrder']) {
-  const values = {
-    m: request.method,
-    a: url.host,
-    s: url.protocol.slice(0, -1),
-    p: `${url.pathname}${url.search}`,
-  };
-  return order.map((key): Header => [PSEUDO[key], values[key]]);
-}
+  /** What we granted the server, and what of it has been read. */
+  readonly #received: ReceiveWindows;
+  /** The largest frame we said we would read. */
+  readonly #readLimit: number;
 
-/** Headers that mean nothing in HTTP/2, which forbids them outright. */
-const FORBIDDEN = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade'];
+  /** A header block still waiting for its CONTINUATION frames. */
+  #block: { stream: number; parts: Uint8Array[]; endStream: boolean } | undefined;
+  /** The last stream a GOAWAY promised to finish. */
+  #goaway: number | undefined;
+  #failure: Error | undefined;
 
-function requestHeaders(
-  request: Request,
-  url: URL,
-  profile: Http2Profile,
-  length: number | null,
-  order: readonly string[] | undefined,
-): Header[] {
-  const regular: Header[] = [];
-  if (!request.headers.has('user-agent')) regular.push(['user-agent', USER_AGENT]);
-  for (const [name, value] of request.headers) {
-    const lower = name.toLowerCase();
-    if (FORBIDDEN.includes(lower) || lower === 'host' || lower === 'content-length') continue;
-    // TE is allowed, but only to say `trailers`.
-    if (lower === 'te' && value.trim().toLowerCase() !== 'trailers') continue;
-    regular.push([lower, value]);
+  constructor(
+    socket: Http2Socket,
+    profile: Http2Profile = DEFAULT_PROFILE,
+    options: Http2ConnectionOptions = {},
+  ) {
+    this.#writer = new ByteWriter(socket.writable);
+    this.#reader = new ByteReader(socket.readable);
+    this.#profile = profile;
+    this.#options = options;
+    const setting = (id: number) => profile.settings.find(([known]) => known === id)?.[1];
+    this.#readLimit = setting(Setting.MaxFrameSize) ?? DEFAULT_MAX_FRAME;
+    this.#received = new ReceiveWindows(
+      setting(Setting.InitialWindowSize) ?? DEFAULT_WINDOW,
+      DEFAULT_WINDOW + profile.windowUpdate,
+      (frame) => this.#post(frame),
+    );
+    // The streams' view of the connection, without handing them all of it.
+    this.#host = {
+      maxFrame: () => this.#maxFrame,
+      window: () => this.#window,
+      spend: (bytes) => void (this.#window -= bytes),
+      write: (frame) => this.#write(frame),
+      consumed: (stream, cost) => this.#received.consumed(stream, cost),
+      settle: (stream) => this.#settle(stream),
+      cancel: (stream, reason) => this.#cancel(stream, reason),
+    };
+
+    void this.#write(PREFACE);
+    void this.#write(encodeFrame(FrameType.Settings, 0, 0, encodeSettings(profile.settings)));
+    if (profile.windowUpdate > 0) {
+      void this.#write(
+        encodeFrame(FrameType.WindowUpdate, 0, 0, encodeWindowUpdate(profile.windowUpdate)),
+      );
+    }
+    void this.#loop();
   }
-  // Browsers state the length of a body they hold, HTTP/2 or not.
-  if (length !== null) regular.push(['content-length', String(length)]);
-  const pseudo = pseudoHeaders(request, url, profile.pseudoHeaderOrder);
-  return [...pseudo, ...(order ? arrange(regular, order) : regular)];
-}
 
-/**
- * Puts the priority fields in front of a header block: the exclusive bit and
- * a dependency on stream 0, then the weight less one, as RFC 9113 §6.2 writes
- * it.
- */
-function withPriority(block: Uint8Array, priority: Http2Profile['priority']): Uint8Array {
-  if (priority === undefined) return block;
-  const out = new Uint8Array(5 + block.length);
-  new DataView(out.buffer).setUint32(0, priority.exclusive ? 0x8000_0000 : 0);
-  out[4] = priority.weight - 1;
-  out.set(block, 5);
-  return out;
-}
+  /** Whether a request may start on it now. */
+  get available(): boolean {
+    return this.alive && this.#streams.size < this.#maxStreams;
+  }
 
-/**
- * Sends `request` and returns the answer with its body still streaming.
- * `socket` is spent afterwards; closing it is the caller's job.
- */
-export interface Http2Options {
+  /** Whether it will ever take another request. */
+  get alive(): boolean {
+    return this.#failure === undefined && this.#goaway === undefined && this.#nextId <= LAST_STREAM;
+  }
+
+  /** Hangs up: every open stream fails, and the socket is closed. */
+  close(reason: Error = new Http2Error('the connection was closed')): void {
+    this.#fail(reason);
+  }
+
   /**
-   * Send the body as it arrives instead of reading it into memory first. For
-   * uploads too large to hold.
+   * Sends `request` on a stream of its own and returns the answer with its
+   * body still streaming.
    */
-  streamBody?: boolean | undefined;
-  /** Decoders beyond gzip and deflate; see `Decoders`. */
-  decoders?: Decoders | undefined;
-  /** The order to write headers in, as `arrange` takes it; left out, as given. */
-  headerOrder?: readonly string[] | undefined;
+  async request(request: Request, options: Http2RequestOptions = {}): Promise<Response> {
+    if (!this.available) throw new Http2Error('the connection takes no more requests', true);
+    const { streamBody = false, decoders = {}, headerOrder, signal } = options;
+    const profile = options.profile ?? this.#profile;
+
+    // Registered before anything is awaited, so no frame for it is missed.
+    const stream = new Http2Stream(this.#nextId, this.#initialWindow, decoders);
+    this.#nextId += 2;
+    this.#streams.set(stream.id, stream);
+    if (signal !== undefined) {
+      const abort = () => this.#cancel(stream, signal.reason as Error);
+      if (signal.aborted) abort();
+      signal.addEventListener('abort', abort, { once: true });
+      stream.unlisten = () => signal.removeEventListener('abort', abort);
+    }
+
+    try {
+      const { body, frames } = await outgoing(request, stream.id, profile, {
+        streamBody,
+        headerOrder,
+        maxFrame: this.#maxFrame,
+      });
+      if (stream.error !== undefined) return await stream.answer;
+      if (body === null) stream.sentEnd = true;
+      try {
+        await this.#writer.write(frames);
+      } catch (error) {
+        // Nothing reached the server, so nothing was acted on: this stream
+        // learns that before the rest learn the connection is gone.
+        const lost = 'the connection was lost before the request went out';
+        this.#streamError(stream, new Http2Error(lost, true, { cause: error }));
+        this.#fail(error as Error);
+      }
+      if (body !== null) void stream.upload(this.#host, body);
+    } catch (error) {
+      this.#streamError(stream, error as Error);
+    }
+    return stream.answer;
+  }
+
+  async #write(bytes: Uint8Array): Promise<void> {
+    try {
+      await this.#writer.write(bytes);
+    } catch (error) {
+      this.#fail(error as Error);
+      throw error;
+    }
+  }
+
+  /** Frames that need not be waited on: acknowledgements and window updates. */
+  #post(bytes: Uint8Array): void {
+    if (this.#failure === undefined) this.#write(bytes).catch(() => undefined);
+  }
+
+  async #loop(): Promise<void> {
+    try {
+      for (;;) this.#dispatch(await readFrame(this.#reader, this.#readLimit));
+    } catch (error) {
+      this.#fail(
+        error instanceof Http2Error
+          ? error
+          : new Http2Error('the connection was lost', false, { cause: error }),
+      );
+    }
+  }
+
+  #dispatch(frame: Frame): void {
+    if (this.#block !== undefined) {
+      if (frame.type !== FrameType.Continuation || frame.stream !== this.#block.stream) {
+        throw new Http2Error('the server interrupted a header block');
+      }
+      this.#block.parts.push(frame.payload);
+      if ((frame.flags & Flags.EndHeaders) !== 0) {
+        const { stream, parts, endStream } = this.#block;
+        this.#block = undefined;
+        this.#headers(stream, joined(parts), endStream);
+      }
+      return;
+    }
+    const view = new DataView(frame.payload.buffer, frame.payload.byteOffset);
+    const word = (at: number) => (frame.payload.length >= at + 4 ? view.getUint32(at) : 0);
+    const stream = this.#streams.get(frame.stream);
+
+    switch (frame.type) {
+      case FrameType.Settings:
+        if ((frame.flags & Flags.Ack) === 0) this.#settings(frame.payload);
+        return;
+      case FrameType.Ping:
+        if ((frame.flags & Flags.Ack) === 0) {
+          this.#post(encodeFrame(FrameType.Ping, Flags.Ack, 0, frame.payload));
+        }
+        return;
+      case FrameType.GoAway:
+        this.#goAway(word(0) & 0x7fffffff, word(4));
+        return;
+      case FrameType.WindowUpdate: {
+        const increment = word(0) & 0x7fffffff;
+        if (frame.stream === 0) {
+          this.#window += increment;
+          for (const open of this.#streams.values()) open.nudge();
+        } else if (stream !== undefined) {
+          stream.send += increment;
+          stream.nudge();
+        }
+        return;
+      }
+      case FrameType.Headers: {
+        const piece = unpad(frame.payload, frame.flags, true);
+        const endStream = (frame.flags & Flags.EndStream) !== 0;
+        if ((frame.flags & Flags.EndHeaders) !== 0) this.#headers(frame.stream, piece, endStream);
+        else this.#block = { stream: frame.stream, parts: [piece], endStream };
+        return;
+      }
+      case FrameType.Continuation:
+        throw new Http2Error('the server sent a CONTINUATION with no header block before it');
+      case FrameType.Data:
+        // The window is spent on the padded length, not what survives it.
+        if (stream === undefined || !stream.answered) {
+          // A stream we have let go of still used up the connection's window.
+          this.#received.consumed(undefined, frame.payload.length);
+          return;
+        }
+        stream.data(unpad(frame.payload, frame.flags, false), frame.payload.length);
+        if ((frame.flags & Flags.EndStream) !== 0) this.#end(stream);
+        return;
+      case FrameType.RstStream: {
+        if (stream === undefined) return;
+        const code = word(0);
+        // A reset with no error after a whole answer only stops our upload.
+        if (code === ErrorCode.NoError && stream.ended) {
+          stream.nudge();
+          return;
+        }
+        const why = `the server reset the stream: ${errorName(code)}`;
+        this.#streamError(stream, new Http2Error(why, code === ErrorCode.RefusedStream));
+        return;
+      }
+      case FrameType.PushPromise:
+        // Push is off in every profile's SETTINGS, so a server sending one
+        // has broken the protocol, and its header block would put our HPACK
+        // table out of step.
+        throw new Http2Error('the server pushed a stream, which our SETTINGS refused');
+      default:
+        // PRIORITY and anything newer: nothing for a client to do.
+        return;
+    }
+  }
+
+  #settings(payload: Uint8Array): void {
+    const settings = decodeSettings(payload);
+    this.#maxFrame = settings.get(Setting.MaxFrameSize) ?? this.#maxFrame;
+    this.#maxStreams = settings.get(Setting.MaxConcurrentStreams) ?? this.#maxStreams;
+    const window = settings.get(Setting.InitialWindowSize);
+    if (window !== undefined) {
+      // A new initial size moves every open stream's window by the difference.
+      const change = window - this.#initialWindow;
+      this.#initialWindow = window;
+      for (const stream of this.#streams.values()) {
+        stream.send += change;
+        stream.nudge();
+      }
+    }
+    this.#post(encodeFrame(FrameType.Settings, Flags.Ack, 0, new Uint8Array(0)));
+  }
+
+  #goAway(last: number, code: number): void {
+    this.#goaway = Math.min(last, this.#goaway ?? LAST_STREAM);
+    // Streams up to `last` are still answered; the server never saw the rest.
+    for (const stream of [...this.#streams.values()]) {
+      if (stream.id <= last) continue;
+      const why = `the server closed the connection: ${errorName(code)}`;
+      this.#streamError(stream, new Http2Error(why, true));
+    }
+    if (this.#streams.size === 0) this.close();
+  }
+
+  #headers(id: number, block: Uint8Array, endStream: boolean): void {
+    // Decoded whatever stream it is for: the table is the connection's.
+    const headers = this.#hpack.decode(block);
+    const stream = this.#streams.get(id);
+    if (stream?.headers(this.#host, headers, endStream) === true && endStream) this.#end(stream);
+  }
+
+  #end(stream: Http2Stream): void {
+    stream.end();
+    this.#settle(stream);
+  }
+
+  /** Lets go of a stream both sides are done with. */
+  #settle(stream: Http2Stream): void {
+    if (!stream.ended || !stream.drained || stream.sending) return;
+    if (!stream.sentEnd) {
+      // The server answered before the body was all sent: our half is closed
+      // with a reset that says nothing went wrong.
+      this.#post(encodeRstStream(stream.id, ErrorCode.NoError));
+      stream.sentEnd = true;
+    }
+    this.#forget(stream);
+  }
+
+  /** Our side gives up on a stream; the connection carries on. */
+  #cancel(stream: Http2Stream, reason: Error): void {
+    if (!this.#streams.has(stream.id)) return;
+    if (!(stream.ended && stream.sentEnd)) this.#post(encodeRstStream(stream.id, ErrorCode.Cancel));
+    this.#streamError(stream, reason);
+  }
+
+  /** Fails one stream: its answer if not given yet, else its body. */
+  #streamError(stream: Http2Stream, error: Error): void {
+    if (stream.error !== undefined) return;
+    stream.fail(error);
+    this.#forget(stream);
+  }
+
+  #forget(stream: Http2Stream): void {
+    stream.unlisten();
+    if (!this.#streams.delete(stream.id) || this.#streams.size > 0) return;
+    if (this.#goaway !== undefined) this.close();
+    else this.#options.onIdle?.();
+  }
+
+  #fail(error: Error): void {
+    if (this.#failure !== undefined) return;
+    this.#failure = error;
+    for (const stream of [...this.#streams.values()]) this.#streamError(stream, error);
+    this.#options.close?.();
+  }
 }
 
-export async function http2Fetch(
+/**
+ * One request on a connection of its own. `socket` is spent afterwards, and
+ * closing it is the caller's job.
+ */
+export function http2Fetch(
   socket: Http2Socket,
   request: Request,
   profile: Http2Profile = DEFAULT_PROFILE,
-  { streamBody = false, decoders = {}, headerOrder }: Http2Options = {},
+  options: Http2Options = {},
 ): Promise<Response> {
-  const url = new URL(request.url);
-  // A body already in memory is sent whole, which also tells us up front
-  // whether HEADERS ends the stream; a streamed one is read as it goes.
-  const buffered =
-    streamBody || request.body === null ? null : new Uint8Array(await request.arrayBuffer());
-  const body: ReadableStream<Uint8Array> | null =
-    request.body === null
-      ? null
-      : streamBody
-        ? request.body
-        : buffered!.byteLength === 0
-          ? null
-          : once(buffered!);
-
-  const writer = new ByteWriter(socket.writable);
-  const reader = new ByteReader(socket.readable);
-  const hpack = new Hpack();
-
-  await writer.write(PREFACE);
-  await writer.write(encodeFrame(FrameType.Settings, 0, 0, encodeSettings(profile.settings)));
-  if (profile.windowUpdate > 0) {
-    await writer.write(
-      encodeFrame(FrameType.WindowUpdate, 0, 0, encodeWindowUpdate(profile.windowUpdate)),
-    );
-  }
-
-  const length = request.body === null || buffered === null ? null : buffered.byteLength;
-  const block = withPriority(
-    hpack.encode(requestHeaders(request, url, profile, length, headerOrder)),
-    profile.priority,
-  );
-  const endStream = body === null ? Flags.EndStream : 0;
-  const flags = Flags.EndHeaders | endStream | (profile.priority ? Flags.Priority : 0);
-  await writer.write(encodeFrame(FrameType.Headers, flags, STREAM, block));
-  const allowance: Allowance = {
-    maxFrame: DEFAULT_MAX_FRAME,
-    stream: DEFAULT_WINDOW,
-    connection: DEFAULT_WINDOW,
-  };
-  const held: Frame[] = [];
-  if (body !== null) await upload(body, reader, writer, allowance, held);
-
-  return await readResponse(
-    reader,
-    writer,
-    hpack,
-    allowance,
-    held,
-    receiveWindows(profile),
-    decoders,
-  );
-}
-
-/**
- * The windows we granted the server: the stream's from our SETTINGS, the
- * connection's from the default plus the update sent after the preface.
- */
-function receiveWindows(profile: Http2Profile) {
-  const initial = profile.settings.find(([id]) => id === Setting.InitialWindowSize)?.[1];
-  return {
-    stream: initial ?? DEFAULT_WINDOW,
-    connection: DEFAULT_WINDOW + profile.windowUpdate,
-  };
-}
-
-/** Reads frames until the response headers arrive, then hands back the body. */
-async function readResponse(
-  reader: ByteReader,
-  writer: ByteWriter,
-  hpack: Hpack,
-  allowance: Allowance,
-  held: Frame[],
-  windows: { stream: number; connection: number },
-  decoders: Decoders,
-): Promise<Response> {
-  let headerBlock = new Uint8Array(0);
-  let expectingContinuation = false;
-
-  for (;;) {
-    const frame =
-      held.shift() ?? (await readFrame(reader, Math.max(allowance.maxFrame, DEFAULT_MAX_FRAME)));
-
-    if (expectingContinuation && frame.type !== FrameType.Continuation) {
-      throw new Http2Error('the server interrupted a header block');
-    }
-    if (await control(frame, allowance, writer)) continue;
-
-    switch (frame.type) {
-      case FrameType.GoAway: {
-        const view = new DataView(frame.payload.buffer, frame.payload.byteOffset);
-        const code = frame.payload.length >= 8 ? view.getUint32(4) : 0;
-        throw new Http2Error(`the server closed the connection: ${errorName(code)}`);
-      }
-
-      case FrameType.RstStream: {
-        const view = new DataView(frame.payload.buffer, frame.payload.byteOffset);
-        const code = frame.payload.length >= 4 ? view.getUint32(0) : 0;
-        throw new Http2Error(`the server reset the stream: ${errorName(code)}`);
-      }
-
-      case FrameType.Headers:
-      case FrameType.Continuation: {
-        const piece =
-          frame.type === FrameType.Headers
-            ? unpad(frame.payload, frame.flags, true)
-            : frame.payload;
-        const joined = new Uint8Array(headerBlock.length + piece.length);
-        joined.set(headerBlock);
-        joined.set(piece, headerBlock.length);
-        headerBlock = joined;
-        expectingContinuation = (frame.flags & Flags.EndHeaders) === 0;
-        if (expectingContinuation) break;
-
-        const headers = hpack.decode(headerBlock);
-        const status = Number(headers.find(([name]) => name === ':status')?.[1] ?? 0);
-        if (!Number.isInteger(status) || status < 100) {
-          throw new Http2Error('the server sent no usable :status');
-        }
-        // A 1xx is informational: the real headers are still to come.
-        if (status < 200) {
-          headerBlock = new Uint8Array(0);
-          break;
-        }
-        const done = (frame.flags & Flags.EndStream) !== 0;
-        return buildResponse(
-          status,
-          headers,
-          done ? null : streamBody(reader, writer, allowance.maxFrame, windows),
-          decoders,
-        );
-      }
-
-      default:
-        // PRIORITY, PUSH_PROMISE and anything newer: a client that only
-        // reads one stream has nothing to do with them.
-        break;
-    }
-  }
-}
-
-function buildResponse(
-  status: number,
-  headers: readonly Header[],
-  body: ReadableStream<Uint8Array> | null,
-  decoders: Decoders,
-): Response {
-  const out = new Headers();
-  for (const [name, value] of headers) {
-    if (name.startsWith(':')) continue;
-    out.append(name, value);
-  }
-  // As on HTTP/1.1: the caller asked for a response, not for gzip.
-  const plain = body === null ? null : decompressed(body, out, decoders);
-  return new Response(plain, { status, headers: out });
-}
-
-/**
- * DATA frames until END_STREAM, topping the flow-control window up as it goes.
- * The top-up comes at half of the smaller window we granted, as browsers do:
- * waiting any longer stalls a server that honours a small window — Firefox
- * grants a stream only 128 KB.
- */
-function streamBody(
-  reader: ByteReader,
-  writer: ByteWriter,
-  maxFrame: number,
-  windows: { stream: number; connection: number },
-): ReadableStream<Uint8Array> {
-  const threshold = Math.min(windows.stream, windows.connection) / 2;
-  let outstanding = 0;
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      for (;;) {
-        const frame = await readFrame(reader, Math.max(maxFrame, DEFAULT_MAX_FRAME));
-        if (frame.type === FrameType.GoAway || frame.type === FrameType.RstStream) {
-          // The body is over either way; an error here would lose what arrived.
-          controller.close();
-          return;
-        }
-        if (frame.type !== FrameType.Data) continue;
-
-        const data = unpad(frame.payload, frame.flags, false);
-        // The window is spent on the padded length, not what survives it.
-        outstanding += frame.payload.length;
-        if (outstanding >= threshold) {
-          const update = encodeWindowUpdate(outstanding);
-          await writer.write(encodeFrame(FrameType.WindowUpdate, 0, 0, update));
-          await writer.write(encodeFrame(FrameType.WindowUpdate, 0, STREAM, update));
-          outstanding = 0;
-        }
-        if (data.length > 0) controller.enqueue(data);
-        if ((frame.flags & Flags.EndStream) !== 0) {
-          controller.close();
-          return;
-        }
-        if (data.length > 0) return;
-      }
-    },
-  });
+  return new Http2Connection(socket, profile).request(request, options);
 }

@@ -53,6 +53,11 @@ export class ByteReader {
     return this.#take(length);
   }
 
+  /** True once the stream has ended and nothing it sent is left unread. */
+  get exhausted(): boolean {
+    return this.#ended && this.#buffer.length === 0;
+  }
+
   async byte(): Promise<number> {
     return (await this.exactly(1))[0] ?? 0;
   }

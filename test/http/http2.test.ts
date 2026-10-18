@@ -160,13 +160,10 @@ describe('http2', () => {
       return encodeFrame(FrameType.WindowUpdate, 0, stream, payload);
     };
     // The default 65,535-byte window, then room for the rest on both levels.
-    const { socket, written } = socketOf([
-      SETTINGS,
-      update(0, 100_000),
-      update(1, 100_000),
-      OK,
-      data('{}'),
-    ]);
+    const { socket, written } = socketOf(
+      [OK, data('{}')],
+      [SETTINGS, update(0, 100_000), update(1, 100_000)],
+    );
     const body = new Uint8Array(150_000).fill(7);
     await (
       await http2Fetch(socket, new Request('https://example.com/', { method: 'POST', body }))
@@ -181,7 +178,8 @@ describe('http2', () => {
 
   it('stops sending a body the server has already answered', async () => {
     const refused = serverHeaders([[':status', '413']], Flags.EndStream);
-    const { socket, written } = socketOf([SETTINGS, refused]);
+    // It answers at once, and grants no more than the first 64 KB.
+    const { socket, written } = socketOf([], [SETTINGS, refused]);
     const body = new Uint8Array(200_000);
     const response = await http2Fetch(
       socket,
@@ -189,8 +187,14 @@ describe('http2', () => {
     );
 
     expect(response.status).toBe(413);
-    const sent = framesIn(written).filter((f) => f.type === FrameType.Data);
-    expect(sent.reduce((n, f) => n + f.payload.length, 0)).toBe(65_535);
+    // The upload notices on its next step, after the answer is handed back.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const frames = framesIn(written);
+    const sent = frames.filter((f) => f.type === FrameType.Data);
+    expect(sent.reduce((n, f) => n + f.payload.length, 0)).toBeLessThanOrEqual(65_535);
+    // Our half is then closed with a reset that says nothing went wrong.
+    const reset = frames.find((f) => f.type === FrameType.RstStream);
+    expect([...(reset?.payload ?? [])]).toEqual([0, 0, 0, 0]);
   });
 
   it('opens the window before a small one runs dry', async () => {

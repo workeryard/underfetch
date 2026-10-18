@@ -22,6 +22,7 @@ import type { TlsFactory } from '../tls/tunnel';
 import { CookieJar } from './cookies';
 import { withDigest } from './digest';
 import { fetchOver } from './fetch';
+import { ConnectionPool } from './pool';
 import { followRedirects, type RedirectOptions } from './redirects';
 import { buildRequest, type BodyOptions } from './request';
 import { withRetry, type RetryOptions } from './retry';
@@ -47,6 +48,13 @@ export interface SessionDefaults extends RedirectOptions {
   connectTimeoutMs?: number | undefined;
   /** Sent with every request, unless the request sets the header itself. */
   headers?: HeadersInit | undefined;
+  /**
+   * Keep connections open for the next request to the same place, as a
+   * browser does: HTTP/2 carries every request to an origin on one
+   * connection, HTTP/1.1 reuses one once its answer is read. `close()` lets
+   * them go. Default: true.
+   */
+  keepAlive?: boolean | undefined;
 }
 
 export interface SessionOptions extends SessionDefaults {
@@ -142,6 +150,7 @@ export class Session {
   readonly #fallback: ((request: Request) => Promise<Response>) | undefined;
   readonly #defaults: SessionDefaults;
   readonly #jar: CookieJar | undefined;
+  readonly #pool: ConnectionPool;
 
   constructor({
     dial,
@@ -161,6 +170,7 @@ export class Session {
     this.#inflater = inflater;
     this.#fallback = fallback;
     this.#defaults = defaults;
+    this.#pool = new ConnectionPool({ keepAlive: defaults.keepAlive ?? true });
     this.#jar =
       defaults.cookies === true
         ? new CookieJar()
@@ -172,6 +182,14 @@ export class Session {
   /** The cookies this session is holding, if it was asked to hold any. */
   get cookies(): CookieJar | undefined {
     return this.#jar;
+  }
+
+  /**
+   * Closes the connections this session is keeping. Answers still being read
+   * are cut off; the session itself can go on, on new connections.
+   */
+  close(): void {
+    this.#pool.close();
   }
 
   /** The proxy this session uses when a request does not say otherwise. */
@@ -228,6 +246,7 @@ export class Session {
       fetchOver(one, {
         dial: this.#dial,
         tls: this.#tls,
+        pool: this.#pool,
         ...(http2 ? { http2 } : {}),
         ...(order ? { headerOrder: order } : {}),
         ...(this.#decoders ? { decoders: this.#decoders } : {}),

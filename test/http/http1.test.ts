@@ -53,10 +53,10 @@ describe('http1', () => {
 
     const wire = sent();
     expect(wire).toContain('POST /openai/v1/chat/completions?a=1 HTTP/1.1\r\n');
-    expect(wire).toContain('Host: api.groq.com\r\n');
+    // Kept alive, said where Chrome says it: straight after Host.
+    expect(wire).toContain('Host: api.groq.com\r\nConnection: keep-alive\r\n');
     expect(wire).toContain('authorization: Bearer gsk\r\n');
     expect(wire).toContain('Content-Length: 13\r\n');
-    expect(wire).toContain('Connection: close\r\n');
     expect(wire.endsWith('{"model":"x"}')).toBe(true);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('hi');

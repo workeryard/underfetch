@@ -15,6 +15,8 @@ export { CookieJar } from './client/cookies';
 export type { Cookie } from './client/cookies';
 export { fetchOver } from './client/fetch';
 export type { FetchOverOptions } from './client/fetch';
+export { ConnectionPool } from './client/pool';
+export type { PoolOptions } from './client/pool';
 export { followRedirects } from './client/redirects';
 export type { RedirectOptions } from './client/redirects';
 export { ApiError, buildRequest } from './client/request';
@@ -33,10 +35,10 @@ export type { WebSocketConnectOptions, WebSocketOptions } from './client/websock
 export { WebSocketConnection, WebSocketError } from './http/websocket';
 export type { WebSocketClose, WebSocketMessage } from './http/websocket';
 
-export { DEFAULT_PROFILE, http2Fetch } from './http/h2/connection';
+export { DEFAULT_PROFILE, Http2Connection, http2Fetch } from './http/h2/connection';
 export type { Http2Profile } from './http/h2/connection';
 export { Http2Error } from './http/h2/frames';
-export { Http1Error, http1Fetch } from './http/http1';
+export { Http1Connection, Http1Error, http1Fetch } from './http/http1';
 export { acceptable, decompressed, zlibDecoders } from './http/decompress';
 export type { Decoders, ZlibModule } from './http/decompress';
 export { zlibInflater } from './http/permessage-deflate';
