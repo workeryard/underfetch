@@ -185,12 +185,14 @@ describe('the ClientHello', () => {
     expect(digest).toBe('d8a2da3f94cd');
   });
 
-  it("is Firefox 144 when asked for Firefox, in Firefox's fixed order", () => {
+  it("is Firefox 158 when asked for Firefox, in Firefox's fixed order", () => {
     const seen = helloFor(firefox);
     const fingerprint = ja4(seen);
 
-    expect(fingerprint.counts).toBe('1717');
-    expect(fingerprint.ciphers).toBe('5b57614c22b0');
+    // As Firefox 158 itself sent it (captures/firefox_158.0_win11.json):
+    // 15 ciphers, two fewer than 144's.
+    expect(fingerprint.counts).toBe('1517');
+    expect(fingerprint.ciphers).toBe('8daaf6152771');
     expect(fingerprint.extensions).toBe('3cbfd9057e0d');
     // Firefox GREASEs nothing at all, unlike Chrome.
     expect(seen.ciphers.filter(isGrease)).toHaveLength(0);

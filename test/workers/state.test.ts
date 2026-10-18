@@ -93,6 +93,15 @@ describe('a profile built from strings', () => {
     expect(() => restoredProfile(saved, profiles.chrome150, named)).toThrow(/akamai/);
   });
 
+  it('restores a short name that has moved on as the browser it was earned as', () => {
+    const old = { name: 'firefox', ja4: profiles.firefox144.expected.ja4 };
+    expect(profiles.firefox).not.toBe(profiles.firefox144);
+    expect(() => restoredProfile(old, undefined, named)).toThrow(/saved as firefox/);
+    expect(restoredProfile(old, undefined, named, Object.values(profiles))).toBe(
+      profiles.firefox144,
+    );
+  });
+
   it('still reads an older state, which recorded a name and a JA4', () => {
     const old = { name: 'chrome', ja4: profiles.chrome.expected.ja4 };
     expect(restoredProfile(old, undefined, named)).toBe(profiles.chrome);

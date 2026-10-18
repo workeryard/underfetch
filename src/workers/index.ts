@@ -243,7 +243,13 @@ export class Session extends PlainSession {
       ...defaults,
     });
     this.#as = as;
-    this.#name = typeof impersonate === 'string' ? impersonate : undefined;
+    // Saved by the browser's own name, not a short one that will move on.
+    this.#name =
+      typeof impersonate === 'string'
+        ? (Object.keys(profiles) as ProfileName[]).find(
+            (name) => profiles[name] === profiles[impersonate],
+          )
+        : undefined;
     this.#input = input;
     this.#tickets = tickets;
   }
@@ -283,7 +289,12 @@ export class Session extends PlainSession {
       options.impersonate === undefined && givenInput === undefined
         ? undefined
         : profileFor(options.impersonate, givenInput);
-    restoredProfile(state.impersonate, given, (name) => profiles[name as ProfileName]);
+    const restored = restoredProfile(
+      state.impersonate,
+      given,
+      (name) => profiles[name as ProfileName],
+      Object.values(profiles),
+    );
 
     let cookies = options.cookies;
     if (state.cookies !== null && cookies !== false) {
@@ -291,12 +302,17 @@ export class Session extends PlainSession {
       cookies.add(state.cookies);
     }
     // Given nothing, it is rebuilt from what the state recorded; the check
-    // above has made sure that is the same browser.
+    // above has made sure that is the same browser. A short name that has
+    // since moved on is restored by the name of the browser it was earned as.
     const identity = state.impersonate;
+    const builtIn =
+      identity?.input === undefined
+        ? (Object.keys(profiles) as ProfileName[]).find((name) => profiles[name] === restored)
+        : undefined;
     const session = new Session({
       ...options,
       ...(given === undefined && identity !== null
-        ? { impersonate: identity.name as ProfileName, ...identity.input }
+        ? { impersonate: builtIn ?? (identity.name as ProfileName), ...identity.input }
         : {}),
       ...(cookies === undefined ? {} : { cookies }),
     });

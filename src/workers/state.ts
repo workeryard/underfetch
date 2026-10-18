@@ -143,6 +143,15 @@ export function restoredProfile(
   saved: Identity | null,
   given: Impersonation | undefined,
   named: (name: string) => Impersonation | undefined,
+  /**
+   * Every built-in profile, oldest first. A short name such as `firefox`
+   * moves to a newer browser over time; a state saved under it is restored
+   * as the browser it was earned as, found by its fingerprints, rather than
+   * refused. Versions can share every fingerprint and differ only in their
+   * user-agent, so of those the newest is taken: a short name always pointed
+   * at the newest when the state was saved.
+   */
+  builtIn: Iterable<Impersonation> = [],
 ): Impersonation | undefined {
   if (saved === null) {
     if (given !== undefined) {
@@ -152,7 +161,10 @@ export function restoredProfile(
     }
     return undefined;
   }
-  const profile = given ?? rebuilt(saved, named);
+  let profile = given ?? rebuilt(saved, named);
+  if (given === undefined && saved.input === undefined && !matches(saved, profile)) {
+    profile = [...builtIn].reverse().find((candidate) => matches(saved, candidate)) ?? profile;
+  }
   if (profile === undefined) {
     throw new SessionStateError(
       'the session was saved with a profile of your own; pass it again to restore',
@@ -168,6 +180,14 @@ export function restoredProfile(
     }
   }
   return profile;
+}
+
+/** Whether every fingerprint the state recorded is `profile`'s too. */
+function matches(saved: Identity, profile: Impersonation | undefined): boolean {
+  if (profile === undefined) return false;
+  return (['ja4', 'ja3', 'akamai'] as const).every(
+    (claim) => saved[claim] === undefined || profile.expected[claim] === saved[claim],
+  );
 }
 
 function rebuilt(

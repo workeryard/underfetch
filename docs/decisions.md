@@ -7,6 +7,16 @@ platform's documentation. Newest first within each section.
 
 ## Taken
 
+**Our own capture of Firefox 158** (2026-10-18). curl-impersonate, as of
+2026-10-07, has no Firefox past 144 and no Chrome past 150, so impers sends
+year-old browsers too. Firefox 158 loaded The New York Times, DigiKey and
+MarketWatch from the address where our 144 profile was refused; swapping
+TLS and headers to 158 one at a time showed the sites check that the
+user-agent is current and that it matches the handshake. With both from 158,
+the WAF benchmark went from 16 to 20 of 22. The capture is ours, recorded
+with `scripts/capture-frames.ts` and converted by `scripts/from-frames.ts`;
+its fingerprints are worked out from the recording, as for curl-impersonate's.
+
 **Streams numbered and chained as each browser does them** (2026-10-18).
 Watched with `scripts/capture-frames.ts`, a proxy logging every frame Chrome
 155, Edge 154 and Firefox 158 sent while loading the same page. Chromium
@@ -90,6 +100,19 @@ makes servers answer with a HelloRetryRequest.
 **HTTP/3, a TCP/IP fingerprint, binding a local address**. A Worker has no
 UDP, and the runtime owns the socket below TLS.
 
+## Open
+
+**Firefox's GREASE ECH payload length.** The importer has given every
+Firefox profile 223 bytes since it was written, with no record of where that
+came from; Firefox 158 sent 240 to `localhost`. NSS may size it by the server
+name, which would make any single number wrong somewhere. Not changed until
+measured against hosts of different lengths. JA4 does not read it.
+
+**A Chrome 155 capture.** Chrome's JA4 moved from `t13d1516` (150) to
+`t13d1518`, and its `accept` gained `image/jxl`. Headless Chrome names itself
+`HeadlessChrome` in its user-agent, so a capture has to come from a visible
+window, which has not been done yet.
+
 ## Found along the way
 
 - tls.peet.ws closes every connection after one answer, so it can never
@@ -97,5 +120,7 @@ UDP, and the runtime owns the socket below TLS.
 - aircanada.com (Akamai) answers the same build with a sensor page one
   request and the real page the next: a miss there is not a regression until
   the previous build, run alongside, passes where this one fails.
-- Firefox trails Chrome on the WAF benchmark for a reason that is still not
-  known: not ML-KEM (2026-09-26), not the stream numbering (2026-10-18).
+- Firefox trailed Chrome on the WAF benchmark because its profile was a
+  year old: not ML-KEM (2026-09-26), not the stream numbering, but a
+  user-agent the sites no longer took, and one that has to match the
+  handshake (2026-10-18; see Firefox 158 above).

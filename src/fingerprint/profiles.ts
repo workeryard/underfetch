@@ -146,15 +146,15 @@ const targets = Object.fromEntries(
 
 /**
  * Every browser, by the names impers gives them, plus the short names it
- * points at the newest of each. Firefox's newest is 144 rather than impers'
- * 147: 147 has no capture to take it from.
+ * points at the newest of each. Firefox's newest is 158, recorded here
+ * (captures/), past impers' 147, of which no capture was published.
  */
 export const profiles = {
   ...targets,
   chrome: targets.chrome150,
   chrome_android: targets.chrome131_android,
   edge: targets.edge101,
-  firefox: targets.firefox144,
+  firefox: targets.firefox158,
   safari: targets.safari2601,
   safari_ios: targets.safari260_ios,
   tor: targets.tor145,

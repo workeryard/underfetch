@@ -280,6 +280,9 @@ export default {
           ...(as ? { impersonate: as } : {}),
           ...(proxy ? { proxy } : {}),
           ...(query.get('onCloudflare') === 'fetch' ? { onCloudflare: 'fetch' as const } : {}),
+          // A JA3 or Akamai string over the profile, as `ja3` and `akamai` take them.
+          ...(query.get('ja3') ? { ja3: query.get('ja3')! } : {}),
+          ...(query.get('akamai') ? { akamai: query.get('akamai')! } : {}),
         }).fetch(url, {
           resource: (query.get('resource') ?? 'document') as Resource,
           ...(query.get('method') ? { method: query.get('method')! } : {}),

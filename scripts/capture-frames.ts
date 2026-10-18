@@ -1,4 +1,5 @@
-// Records every HTTP/2 frame a real browser sends on one connection: each
+// Records a real browser's ClientHello — its JA3 and JA4, worked out by the
+// same code that checks our profiles — and every HTTP/2 frame it sends: each
 // HEADERS frame's stream, its priority fields (exclusive bit, the stream it
 // depends on, weight) and its :path and priority header, and every
 // SETTINGS, WINDOW_UPDATE, PRIORITY and PRIORITY_UPDATE frame. What
@@ -19,9 +20,11 @@
 // and streams that do not are both seen.
 import http2 from 'node:http2';
 import { connect, type AddressInfo } from 'node:net';
+import { createServer as createRawServer, type Socket } from 'node:net';
 import { createServer } from 'node:tls';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Hpack } from '../src/http/h2/hpack';
+import { ja3, ja4, parseClientHello } from '../src/fingerprint/verify';
 
 const page = `<!doctype html><html><head><title>frames</title></head><body>
 <img src="/img/1.png"><img src="/img/2.png"><img src="/img/3.png"><img src="/img/4.png">
@@ -121,6 +124,7 @@ const front = createServer(
           const headers = hpack.decode(new Uint8Array(block));
           entry.path = headers.find(([name]) => name === ':path')?.[1];
           entry.priority = headers.find(([name]) => name === 'priority')?.[1];
+          entry.headers = headers;
         } else if (type === 0x2) {
           const word = payload.readUInt32BE(0);
           entry.exclusive = (word & 0x80000000) !== 0;
@@ -154,7 +158,52 @@ const front = createServer(
     client.on('close', close);
   },
 );
-front.listen(Number(process.env.PORT ?? 8443), () =>
+// The ClientHello is read off the raw socket on its way through: the bytes
+// are relayed to the TLS server on a port of its own, since a TLS socket reads
+// its handle directly and would never see bytes put back on this one.
+front.listen(0, '127.0.0.1');
+const raw = createRawServer((socket: Socket) => {
+  const inner = connect((front.address() as AddressInfo).port, '127.0.0.1');
+  let held = Buffer.alloc(0);
+  let seen = false;
+  socket.on('data', (chunk: Buffer) => {
+    inner.write(chunk);
+    if (seen) return;
+    held = Buffer.concat([held, chunk]);
+    if (held.length < 5 || held.length < 5 + held.readUInt16BE(3)) return;
+    seen = true;
+    const record = new Uint8Array(held.subarray(0, 5 + held.readUInt16BE(3)));
+    void (async () => {
+      try {
+        const hello = parseClientHello(record);
+        log.push({
+          connection: connections + 1,
+          at: Date.now() - started,
+          type: 'CLIENT_HELLO',
+          stream: 0,
+          ja3: ja3(hello),
+          ja4: await ja4(hello),
+          hello,
+          bytes: Buffer.from(record).toString('hex'),
+        });
+      } catch (error) {
+        log.push({ connection: 0, at: 0, type: 'CLIENT_HELLO', stream: 0, error: String(error) });
+      }
+      writeFileSync(process.env.OUT ?? 'frames.json', JSON.stringify(log, null, 1));
+    })();
+  });
+  inner.pipe(socket);
+  const close = () => {
+    socket.destroy();
+    inner.destroy();
+  };
+  socket.on('error', close);
+  inner.on('error', close);
+  socket.on('close', close);
+  inner.on('close', close);
+});
+
+raw.listen(Number(process.env.PORT ?? 8443), () =>
   console.log(
     `https://localhost:${process.env.PORT ?? 8443}/ writing ${process.env.OUT ?? 'frames.json'}`,
   ),
