@@ -794,6 +794,9 @@ make fetch URL=https://… PROXY=socks5://host:1080
 make dev-stop
 ```
 
+Why something was taken from another client, or left out, is in
+[docs/decisions.md](docs/decisions.md).
+
 ## Licence
 
 MIT. The vendored rustls fork under `rust-tls/vendor/` keeps its own licences
