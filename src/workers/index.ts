@@ -34,7 +34,8 @@ import {
   toBase64,
   type SessionState,
 } from './state';
-import { DialError, type ByteSocket, type Dial } from '../net/socket';
+import type { ByteSocket, Dial } from '../net/socket';
+import { refused } from './refused';
 
 /**
  * Opens a plain TCP connection. TLS is never asked of the platform: its own
@@ -55,37 +56,6 @@ export const dial: Dial = async (hostname, port) => {
   };
   return wrapped;
 };
-
-/**
- * Why a connection could not be made, in words a caller can act on. A
- * deployed Worker may not open a TCP socket to Cloudflare's own addresses,
- * so a site served through Cloudflare cannot be reached from a Worker
- * without a proxy between them. `wrangler dev` does not enforce this;
- * production does.
- *
- * Production refuses it with "proxy request failed, cannot connect to the
- * specified address. It looks like you might be trying to connect to a
- * HTTP-based service — consider using fetch instead" (seen 2026-09-25). The
- * first half is also what any unreachable address gets, so only the second
- * marks the Cloudflare block, and only that is final: anything else may work
- * on another try. A socket read without awaiting `opened` fails with "Stream
- * was cancelled." instead.
- */
-function refused(hostname: string, port: number, error: unknown): DialError {
-  const said = error instanceof Error ? error.message : String(error);
-  if (/HTTP-based service|stream was cancelled/i.test(said)) {
-    return new DialError(
-      `could not connect to ${hostname}:${port}: a Worker may not open TCP connections to ` +
-        "Cloudflare's own IP ranges, which is where a site behind Cloudflare lives. " +
-        'Reach it through a proxy (the `proxy` option).',
-      true,
-      { cause: error },
-    );
-  }
-  return new DialError(`could not connect to ${hostname}:${port}: ${said}`, false, {
-    cause: error,
-  });
-}
 
 /**
  * The `node:zlib` a Worker carries on a recent compatibility date
