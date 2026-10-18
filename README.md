@@ -928,4 +928,6 @@ Why something was taken from another client, or left out, is in
 ## Licence
 
 MIT. The vendored rustls fork under `rust-tls/vendor/` keeps its own licences
-(Apache-2.0, ISC and MIT).
+(Apache-2.0, ISC and MIT). The WebAssembly the package ships is compiled from
+rustls, ring and 31 other crates, all under permissive licences; their texts
+are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -38,7 +38,8 @@
     "rust-tls/Cargo.toml",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

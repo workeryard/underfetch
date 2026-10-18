@@ -35,7 +35,7 @@ LOG     = .wrangler/dev.log
 WASM    = rust-tls/pkg/underfetch_tls_bg.wasm
 
 .DEFAULT_GOAL := help
-.PHONY: help install check test typecheck typecheck-workers lint format verify wasm wasm-size \
+.PHONY: help install check test typecheck typecheck-workers lint format verify wasm wasm-size notices \
         import-browsers dev dev-stop dev-restart dev-log fingerprints cases \
         resume state live fetch deploy probe-token clean
 
@@ -82,6 +82,12 @@ wasm: ## rebuild the TLS module after changing rust-tls/
 	@# wasm-pack writes a `*` .gitignore here on every build; the output is committed.
 	@rm -f rust-tls/pkg/.gitignore
 	@$(MAKE) -s wasm-size
+	@$(MAKE) -s notices
+
+# The wasm is shipped, and with it the crates compiled into it; their
+# licences have to go with them. Rewritten on every wasm build.
+notices: ## THIRD-PARTY-NOTICES.md from the crates compiled into the wasm
+	@python3 scripts/notices.py
 
 wasm-size: ## how big the committed wasm is
 	@printf 'wasm: %s bytes, %s gzipped\n' "$$(stat -c %s $(WASM))" "$$(gzip -c $(WASM) | wc -c)"
